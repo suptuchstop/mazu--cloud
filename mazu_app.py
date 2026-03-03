@@ -1,35 +1,25 @@
 import streamlit as st
 import pandas as pd
-import requests
-from io import BytesIO
 
 st.set_page_config(layout="wide")
 st.title("白沙屯媽祖行程雲端查詢系統")
 
 # -------------------------
-# pCloud Excel 連結
+# GitHub raw Excel 連結
 # -------------------------
-file_url = "https://e.pcloud.link/publink/show?code=XZGEO3ZCQzNxuekVqkysQHYk54I9hFAOkHV?raw=1&download=1"  # <- 改成你的公開下載連結
+file_url = "https://github.com/suptuchstop/mazu--cloud/raw/refs/heads/main/BaishatunMAZU_Data.xlsx"
 
 # -------------------------
-# 下載並讀取 Excel
+# 讀取 Excel
 # -------------------------
-@st.cache_data
-def load_excel_from_url(url):
-    r = requests.get(url)
-    r.raise_for_status()  # 下載失敗會報錯
-    file_bytes = BytesIO(r.content)
-    xls = pd.ExcelFile(file_bytes, engine='openpyxl')
-    return xls
-
 @st.cache_data
 def load_data(file_url):
-    xls = load_excel_from_url(file_url)
+    xls = pd.ExcelFile(file_url, engine='openpyxl')
     all_data = {}
     summary = []
 
     for sheet in xls.sheet_names:
-        df = pd.read_excel(file_bytes:=BytesIO(requests.get(file_url).content), sheet_name=sheet, engine='openpyxl')
+        df = pd.read_excel(file_url, sheet_name=sheet, engine='openpyxl')
         df.columns = df.columns.str.strip()
 
         df['去回程'] = df['去回程'].astype(str).str.strip().replace({'去程':'去','回程':'回'})

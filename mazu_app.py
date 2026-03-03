@@ -9,7 +9,7 @@ st.title("白沙屯媽祖行程雲端查詢系統")
 # -------------------------
 # pCloud Excel 連結
 # -------------------------
-file_url = "https://e.pcloud.link/publink/show?code=XZGEO3ZCQzNxuekVqkysQHYk54I9hFAOkHV&download=1"  # <- 改成你的公開下載連結
+file_url = "https://e.pcloud.link/publink/show?code=XZGEO3ZCQzNxuekVqkysQHYk54I9hFAOkHV?raw=1&download=1"  # <- 改成你的公開下載連結
 
 # -------------------------
 # 下載並讀取 Excel

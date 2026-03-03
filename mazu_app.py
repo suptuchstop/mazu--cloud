@@ -14,12 +14,12 @@ file_url = "https://e.pcloud.link/publink/show?code=XZGEO3ZCQzNxuekVqkysQHYk54I9
 # -------------------------
 @st.cache_data
 def load_data(file_url):
-    xls = pd.ExcelFile(file_url)
+    xls = pd.ExcelFile(file_url, engine='openpyxl')
     all_data = {}
     summary = []
 
     for sheet in xls.sheet_names:
-        df = pd.read_excel(file_url, sheet_name=sheet)
+        df = pd.read_excel(file_url, sheet_name=sheet, engine='openpyxl')
         df.columns = df.columns.str.strip()
 
         df['去回程'] = df['去回程'].astype(str).str.strip().replace({'去程':'去','回程':'回'})

@@ -35,27 +35,53 @@ def load_data(file_url):
         go_days = df[df['去回程']=='去'][['月','日']].drop_duplicates().shape[0]
         back_days = df[df['去回程']=='回'][['月','日']].drop_duplicates().shape[0]
 
-        go_time = 0
-        back_time = 0
-        for _, group in df.groupby(['月','日']):
-            g = group[group['去回程']=='去']['時間_dt'].dropna()
-            if len(g) >= 2:
-                go_time += (g.max()-g.min()).total_seconds()/3600
-            b = group[group['去回程']=='回']['時間_dt'].dropna()
-            if len(b) >= 2:
-                back_time += (b.max()-b.min()).total_seconds()/3600
-                
-        summary.append({
-            "年份": sheet,
-            "總天數": total_days,
-            "去程天數": go_days,
-            "回程天數": back_days,
-            "總時間(時)": round(go_time+back_time,2),
-            "去程時間(時)": round(go_time,2),
-            "回程時間(時)": round(back_time,2)
-        })
+       go_time = 0
+       back_time = 0
 
-    return all_data, pd.DataFrame(summary)
+       # 先排序整年
+       df_sorted = df.sort_values(['月','日','時間_dt'])
+
+       # 建立完整 datetime（超重要）
+       df_sorted['完整時間'] = pd.to_datetime(
+           df_sorted['月'].astype(str) + '-' +
+           df_sorted['日'].astype(str) + ' ' +
+           df_sorted['時間'].astype(str),
+           format='%m-%d %H:%M',
+           errors='coerce'
+       )
+
+       # 去程
+       go_df = df_sorted[df_sorted['去回程']=='去'].dropna(subset=['完整時間'])
+
+       go_times = go_df['完整時間'].tolist()
+
+       for i in range(1, len(go_times)):
+           diff = (go_times[i] - go_times[i-1]).total_seconds()
+           if 0 < diff < 60*60*12:   # 超過12小時視為中斷（避免跳日錯算）
+               go_time += diff / 3600
+
+
+       # 回程
+       back_df = df_sorted[df_sorted['去回程']=='回'].dropna(subset=['完整時間'])
+
+       back_times = back_df['完整時間'].tolist()
+
+       for i in range(1, len(back_times)):
+           diff = (back_times[i] - back_times[i-1]).total_seconds()
+           if 0 < diff < 60*60*12:
+               back_time += diff / 3600
+
+               summary.append({
+                   "年份": sheet,
+                   "總天數": total_days,
+                   "去程天數": go_days,
+                   "回程天數": back_days,
+                   "總時間(時)": round(go_time+back_time,2),
+                   "去程時間(時)": round(go_time,2),
+                   "回程時間(時)": round(back_time,2)
+               })
+
+           return all_data, pd.DataFrame(summary)
 
 # -------------------------
 # 載入資料

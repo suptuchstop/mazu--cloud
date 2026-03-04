@@ -1,140 +1,96 @@
 import streamlit as st
 import pandas as pd
+import requests
+from io import BytesIO
 
-st.set_page_config(layout="wide")
-st.title("白沙屯媽祖行程雲端查詢系統")
+st.set_page_config(page_title="白沙屯媽祖年度統計", layout="wide")
 
-# -------------------------
-# GitHub raw Excel 連結
-# -------------------------
-file_url = "https://github.com/suptuchstop/mazu--cloud/raw/refs/heads/main/BaishatunMAZU_Data.xlsx"
+st.title("白沙屯媽祖年度統計總覽")
 
-# -------------------------
-# 讀取 Excel
-# -------------------------
-@st.cache_data
-def load_data(file_url):
-    xls = pd.ExcelFile(file_url, engine='openpyxl')
-    all_data = {}
+# ===== GitHub Raw 直連 Excel =====
+file_url = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
+
+try:
+    # 下載 Excel
+    response = requests.get(file_url)
+    response.raise_for_status()
+
+    excel_data = BytesIO(response.content)
+    xls = pd.ExcelFile(excel_data, engine="openpyxl")
+
+    st.write("讀到的 Sheets：", xls.sheet_names)
+
     summary = []
 
     for sheet in xls.sheet_names:
-        df = pd.read_excel(file_url, sheet_name=sheet, engine='openpyxl')
+
+        df = pd.read_excel(xls, sheet_name=sheet)
         df.columns = df.columns.str.strip()
 
-        df['去回程'] = df['去回程'].astype(str).str.strip().replace({'去程':'去','回程':'回'})
-        df['停駐駕'] = df['停駐駕'].astype(str).str.strip()
-        df['時間_dt'] = pd.to_datetime(df['時間'], format='%H:%M', errors='coerce')
+        # ===== 清理去回程 =====
+        df['去回程'] = (
+            df['去回程']
+            .astype(str)
+            .str.strip()
+            .replace({
+                '去程': '去',
+                '回程': '回',
+                '去 ': '去',
+                '回 ': '回'
+            })
+        )
 
-        # 自動時間排序
-        df = df.sort_values(['月','日','時間_dt'])
-        all_data[str(sheet)] = df
+        # ===== 建立完整時間 =====
+        df['完整時間'] = pd.to_datetime(
+            df['月'].astype(str) + '-' +
+            df['日'].astype(str) + ' ' +
+            df['時間'].astype(str),
+            format='%m-%d %H:%M',
+            errors='coerce'
+        )
 
-        # 統計
+        df = df.sort_values('完整時間')
+
+        go_time = 0
+        back_time = 0
+
+        # ===== 去程時間 =====
+        go_df = df[df['去回程'] == '去'].dropna(subset=['完整時間'])
+        go_times = go_df['完整時間'].tolist()
+
+        for i in range(1, len(go_times)):
+            diff = (go_times[i] - go_times[i-1]).total_seconds()
+            if 0 < diff < 60*60*12:
+                go_time += diff / 3600
+
+        # ===== 回程時間 =====
+        back_df = df[df['去回程'] == '回'].dropna(subset=['完整時間'])
+        back_times = back_df['完整時間'].tolist()
+
+        for i in range(1, len(back_times)):
+            diff = (back_times[i] - back_times[i-1]).total_seconds()
+            if 0 < diff < 60*60*12:
+                back_time += diff / 3600
+
+        # ===== 天數統計 =====
         total_days = df[['月','日']].drop_duplicates().shape[0]
-        go_days = df[df['去回程']=='去'][['月','日']].drop_duplicates().shape[0]
-        back_days = df[df['去回程']=='回'][['月','日']].drop_duplicates().shape[0]
+        go_days = go_df[['月','日']].drop_duplicates().shape[0]
+        back_days = back_df[['月','日']].drop_duplicates().shape[0]
 
-    go_time = 0
-    back_time = 0
+        summary.append({
+            "年份": sheet,
+            "總天數": total_days,
+            "去程天數": go_days,
+            "回程天數": back_days,
+            "總時間(時)": round(go_time + back_time, 2),
+            "去程時間(時)": round(go_time, 2),
+            "回程時間(時)": round(back_time, 2)
+        })
 
-    # 先排序整年
-    df_sorted = df.sort_values(['月','日','時間_dt'])
+    summary_df = pd.DataFrame(summary)
 
-    # 建立完整 datetime（超重要）
-    df_sorted['完整時間'] = pd.to_datetime(
-           df_sorted['月'].astype(str) + '-' +
-           df_sorted['日'].astype(str) + ' ' +
-           df_sorted['時間'].astype(str),
-           format='%m-%d %H:%M',
-           errors='coerce'
-       )
-
-    # 去程
-    go_df = df_sorted[df_sorted['去回程']=='去'].dropna(subset=['完整時間'])
-
-    go_times = go_df['完整時間'].tolist()
-
-    for i in range(1, len(go_times)):
-           diff = (go_times[i] - go_times[i-1]).total_seconds()
-           if 0 < diff < 60*60*12:   # 超過12小時視為中斷（避免跳日錯算）
-               go_time += diff / 3600
-
-
-    # 回程
-    back_df = df_sorted[df_sorted['去回程']=='回'].dropna(subset=['完整時間'])
-
-    back_times = back_df['完整時間'].tolist()
-
-    for i in range(1, len(back_times)):
-           diff = (back_times[i] - back_times[i-1]).total_seconds()
-           if 0 < diff < 60*60*12:
-               back_time += diff / 3600
-
-               summary.append({
-                   "年份": sheet,
-                   "總天數": total_days,
-                   "去程天數": go_days,
-                   "回程天數": back_days,
-                   "總時間(時)": round(go_time+back_time,2),
-                   "去程時間(時)": round(go_time,2),
-                   "回程時間(時)": round(back_time,2)
-               })
-
-           return all_data, pd.DataFrame(summary)
-
-# -------------------------
-# 載入資料
-# -------------------------
-try:
-    data_dict, summary_df = load_data(file_url)
-
-    # 年度統計
     st.subheader("年度統計總覽")
-    st.dataframe(summary_df, width="stretch")
-
-    # 年份選擇
-    st.divider()
-    year = st.selectbox("選擇年份", summary_df["年份"])
-    df_year = data_dict[year]
-
-    # 日期選擇
-    unique_days = df_year[['月','日']].drop_duplicates()
-    unique_days['日期'] = unique_days.apply(
-        lambda x: f"{int(x['月']):02d}/{int(x['日']):02d}", axis=1
-    )
-    day_select = st.selectbox("選擇日期", unique_days['日期'])
-
-    m, d = map(int, day_select.split("/"))
-    df_day = df_year[(df_year['月']==m) & (df_year['日']==d)]
-
-    st.subheader(f"{year} 年 {day_select} 詳細行程")
-    st.dataframe(
-        df_day[['時間','地點','去回程','停駐駕']],
-        width="stretch"
-    )
-
-    # 地點關鍵字搜尋
-    st.divider()
-    st.subheader("地點關鍵字搜尋")
-    keyword = st.text_input("輸入地點關鍵字")
-
-    if keyword:
-        results = []
-        for y, df in data_dict.items():
-            match = df[df['地點'].astype(str).str.contains(keyword, na=False)]
-            if not match.empty:
-                days = match[['月','日']].drop_duplicates()
-                for _, row in days.iterrows():
-                    results.append({
-                        "年份": y,
-                        "日期": f"{int(row['月']):02d}/{int(row['日']):02d}"
-                    })
-        if results:
-            result_df = pd.DataFrame(results).sort_values(['年份','日期'])
-            st.dataframe(result_df, width="stretch")
-        else:
-            st.warning("沒有找到相關停駐紀錄")
+    st.dataframe(summary_df, use_container_width=True)
 
 except Exception as e:
     st.error(f"讀取失敗：{e}")

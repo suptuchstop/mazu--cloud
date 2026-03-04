@@ -46,27 +46,36 @@ for sheet in xls.sheet_names:
 
     all_data[sheet] = df
 
+    # ===== 時間統計 =====
     go_time = 0
     back_time = 0
 
     go_df = df[df['去回程'] == '去'].dropna(subset=['完整時間'])
+    back_df = df[df['去回程'] == '回'].dropna(subset=['完整時間'])
+
     go_times = go_df['完整時間'].tolist()
+    back_times = back_df['完整時間'].tolist()
 
     for i in range(1, len(go_times)):
         diff = (go_times[i] - go_times[i - 1]).total_seconds()
         if 0 < diff <= 60 * 60 * 24:
             go_time += diff / 3600
 
-    back_df = df[df['去回程'] == '回'].dropna(subset=['完整時間'])
-    back_times = back_df['完整時間'].tolist()
-
     for i in range(1, len(back_times)):
         diff = (back_times[i] - back_times[i - 1]).total_seconds()
         if 0 < diff <= 60 * 60 * 24:
             back_time += diff / 3600
 
+    # ===== 天數統計 =====
+    total_days = df[['月', '日']].drop_duplicates().shape[0]
+    go_days = go_df[['月', '日']].drop_duplicates().shape[0]
+    back_days = back_df[['月', '日']].drop_duplicates().shape[0]
+
     summary.append({
         "年份": sheet,
+        "總天數": total_days,
+        "去程天數": go_days,
+        "回程天數": back_days,
         "總時間(時)": round(go_time + back_time, 2),
         "去程時間(時)": round(go_time, 2),
         "回程時間(時)": round(back_time, 2)

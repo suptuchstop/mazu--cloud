@@ -7,7 +7,7 @@ st.set_page_config(page_title="白沙屯媽祖年度統計", layout="wide")
 
 st.title("白沙屯媽祖年度統計總覽")
 
-# ===== GitHub Raw 直連 Excel =====
+# ===== GitHub Raw Excel 直連 =====
 file_url = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
 
 try:
@@ -27,7 +27,7 @@ try:
         df = pd.read_excel(xls, sheet_name=sheet)
         df.columns = df.columns.str.strip()
 
-        # ===== 清理去回程 =====
+        # ===== 清理 去回程 =====
         df['去回程'] = (
             df['去回程']
             .astype(str)
@@ -54,28 +54,28 @@ try:
         go_time = 0
         back_time = 0
 
-        # ===== 去程時間 =====
+        # ===== 去程 =====
         go_df = df[df['去回程'] == '去'].dropna(subset=['完整時間'])
         go_times = go_df['完整時間'].tolist()
 
         for i in range(1, len(go_times)):
-            diff = (go_times[i] - go_times[i-1]).total_seconds()
-            if 0 < diff < 60*60*12:
+            diff = (go_times[i] - go_times[i - 1]).total_seconds()
+            if 0 < diff <= 60 * 60 * 24:
                 go_time += diff / 3600
 
-        # ===== 回程時間 =====
+        # ===== 回程 =====
         back_df = df[df['去回程'] == '回'].dropna(subset=['完整時間'])
         back_times = back_df['完整時間'].tolist()
 
         for i in range(1, len(back_times)):
-            diff = (back_times[i] - back_times[i-1]).total_seconds()
-            if 0 < diff < 60*60*12:
+            diff = (back_times[i] - back_times[i - 1]).total_seconds()
+            if 0 < diff <= 60 * 60 * 24:
                 back_time += diff / 3600
 
         # ===== 天數統計 =====
-        total_days = df[['月','日']].drop_duplicates().shape[0]
-        go_days = go_df[['月','日']].drop_duplicates().shape[0]
-        back_days = back_df[['月','日']].drop_duplicates().shape[0]
+        total_days = df[['月', '日']].drop_duplicates().shape[0]
+        go_days = go_df[['月', '日']].drop_duplicates().shape[0]
+        back_days = back_df[['月', '日']].drop_duplicates().shape[0]
 
         summary.append({
             "年份": sheet,

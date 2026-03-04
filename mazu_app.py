@@ -40,11 +40,11 @@ def load_data(file_url):
         for _, group in df.groupby(['月','日']):
             g = group[group['去回程']=='去']['時間_dt'].dropna()
             if len(g) >= 2:
-                go_time += (g.max()-g.min()).seconds/3600
+                go_time += (g.max()-g.min()).total_seconds()/3600
             b = group[group['去回程']=='回']['時間_dt'].dropna()
             if len(b) >= 2:
-                back_time += (b.max()-b.min()).seconds/3600
-
+                back_time += (b.max()-b.min()).total_seconds()/3600
+                
         summary.append({
             "年份": sheet,
             "總天數": total_days,

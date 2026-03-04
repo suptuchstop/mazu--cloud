@@ -35,14 +35,14 @@ def load_data(file_url):
         go_days = df[df['去回程']=='去'][['月','日']].drop_duplicates().shape[0]
         back_days = df[df['去回程']=='回'][['月','日']].drop_duplicates().shape[0]
 
-       go_time = 0
-       back_time = 0
+    go_time = 0
+    back_time = 0
 
-       # 先排序整年
-       df_sorted = df.sort_values(['月','日','時間_dt'])
+    # 先排序整年
+    df_sorted = df.sort_values(['月','日','時間_dt'])
 
-       # 建立完整 datetime（超重要）
-       df_sorted['完整時間'] = pd.to_datetime(
+    # 建立完整 datetime（超重要）
+    df_sorted['完整時間'] = pd.to_datetime(
            df_sorted['月'].astype(str) + '-' +
            df_sorted['日'].astype(str) + ' ' +
            df_sorted['時間'].astype(str),
@@ -50,23 +50,23 @@ def load_data(file_url):
            errors='coerce'
        )
 
-       # 去程
-       go_df = df_sorted[df_sorted['去回程']=='去'].dropna(subset=['完整時間'])
+    # 去程
+    go_df = df_sorted[df_sorted['去回程']=='去'].dropna(subset=['完整時間'])
 
-       go_times = go_df['完整時間'].tolist()
+    go_times = go_df['完整時間'].tolist()
 
-       for i in range(1, len(go_times)):
+    for i in range(1, len(go_times)):
            diff = (go_times[i] - go_times[i-1]).total_seconds()
            if 0 < diff < 60*60*12:   # 超過12小時視為中斷（避免跳日錯算）
                go_time += diff / 3600
 
 
-       # 回程
-       back_df = df_sorted[df_sorted['去回程']=='回'].dropna(subset=['完整時間'])
+    # 回程
+    back_df = df_sorted[df_sorted['去回程']=='回'].dropna(subset=['完整時間'])
 
-       back_times = back_df['完整時間'].tolist()
+    back_times = back_df['完整時間'].tolist()
 
-       for i in range(1, len(back_times)):
+    for i in range(1, len(back_times)):
            diff = (back_times[i] - back_times[i-1]).total_seconds()
            if 0 < diff < 60*60*12:
                back_time += diff / 3600

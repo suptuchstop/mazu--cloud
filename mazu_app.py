@@ -14,9 +14,10 @@ st.markdown(
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        opacity: 0.08;
+        opacity: 0.20;
         z-index: 0;
         pointer-events: none;
+        filter: drop-shadow(0 0 20px gold);
     }
     </style>
 

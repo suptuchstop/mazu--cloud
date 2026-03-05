@@ -44,12 +44,6 @@ st.markdown(
         z-index: 1;
     }}
     
-    /* 🔥 metric 文字全白 */
-    [data-testid="stMetricLabel"] {
-        color: white !important;
-    }
-
-
     </style>
 
     <img src="data:image/png;base64,{img_base64}" class="watermark" width="700">

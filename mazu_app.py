@@ -10,113 +10,144 @@ st.title("🔥白沙屯媽進香資料記錄🔥                            βŁ
 file_url = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
 
 # ==============================
-# 讀取 Excel
+# 快取讀取 + 統計優化
 # ==============================
 
-response = requests.get(file_url)
-response.raise_for_status()
+@st.cache_data
+def load_data():
 
-excel_data = BytesIO(response.content)
-xls = pd.ExcelFile(excel_data, engine="openpyxl")
+    response = requests.get(file_url)
+    response.raise_for_status()
 
-all_data = {}
-summary = []
+    excel_data = BytesIO(response.content)
+    xls = pd.ExcelFile(excel_data, engine="openpyxl")
 
-for sheet in xls.sheet_names:
+    all_data = {}
+    summary = []
 
-    df = pd.read_excel(xls, sheet_name=sheet)
-    df.columns = df.columns.str.strip()
+    # 🔥 時間計算函式（優化版）
+    def calculate_hours(time_list):
+        total = 0
+        for i in range(1, len(time_list)):
+            diff = (time_list[i] - time_list[i - 1]).total_seconds()
+            if 0 < diff <= 86400:
+                total += diff / 3600
+        return total
 
-    df['去回程'] = (
-        df['去回程']
-        .astype(str)
-        .str.strip()
-        .replace({'去程': '去', '回程': '回'})
-    )
+    for sheet in xls.sheet_names:
 
-    df['完整時間'] = pd.to_datetime(
-        df['月'].astype(str) + '-' +
-        df['日'].astype(str) + ' ' +
-        df['時間'].astype(str),
-        format='%m-%d %H:%M',
-        errors='coerce'
-    )
+        df = pd.read_excel(xls, sheet_name=sheet)
+        df.columns = df.columns.str.strip()
 
-    df = df.sort_values('完整時間')
+        df['去回程'] = (
+            df['去回程']
+            .astype(str)
+            .str.strip()
+            .replace({'去程': '去', '回程': '回'})
+        )
 
-    all_data[sheet] = df
+        df['完整時間'] = pd.to_datetime(
+            df['月'].astype(str) + '-' +
+            df['日'].astype(str) + ' ' +
+            df['時間'].astype(str),
+            format='%m-%d %H:%M',
+            errors='coerce'
+        )
 
-    # ===== 時間統計 =====
-    go_time = 0
-    back_time = 0
+        df = df.sort_values('完整時間')
 
-    go_df = df[df['去回程'] == '去'].dropna(subset=['完整時間'])
-    back_df = df[df['去回程'] == '回'].dropna(subset=['完整時間'])
+        all_data[sheet] = df
 
-    go_times = go_df['完整時間'].tolist()
-    back_times = back_df['完整時間'].tolist()
+        # ===== 時間統計 =====
+        go_df = df[df['去回程'] == '去'].dropna(subset=['完整時間'])
+        back_df = df[df['去回程'] == '回'].dropna(subset=['完整時間'])
 
-    for i in range(1, len(go_times)):
-        diff = (go_times[i] - go_times[i - 1]).total_seconds()
-        if 0 < diff <= 60 * 60 * 24:
-            go_time += diff / 3600
+        go_time = calculate_hours(go_df['完整時間'].tolist())
+        back_time = calculate_hours(back_df['完整時間'].tolist())
 
-    for i in range(1, len(back_times)):
-        diff = (back_times[i] - back_times[i - 1]).total_seconds()
-        if 0 < diff <= 60 * 60 * 24:
-            back_time += diff / 3600
+        # ===== 天數統計 =====
+        total_days = df[['月', '日']].drop_duplicates().shape[0]
+        go_days = go_df[['月', '日']].drop_duplicates().shape[0]
+        back_days = back_df[['月', '日']].drop_duplicates().shape[0]
 
-    # ===== 天數統計 =====
-    total_days = df[['月', '日']].drop_duplicates().shape[0]
-    go_days = go_df[['月', '日']].drop_duplicates().shape[0]
-    back_days = back_df[['月', '日']].drop_duplicates().shape[0]
+        summary.append({
+            "年份": sheet,
+            "總天數": total_days,
+            "去程天數": go_days,
+            "回程天數": back_days,
+            "總時間": round(go_time + back_time, 2),
+            "去程時間": round(go_time, 2),
+            "回程時間": round(back_time, 2)
+        })
 
-    summary.append({
-        "年份": sheet,
-        "總天數": total_days,
-        "去程天數": go_days,
-        "回程天數": back_days,
-        "總時間(時)": round(go_time + back_time, 2),
-        "去程時間(時)": round(go_time, 2),
-        "回程時間(時)": round(back_time, 2)
-    })
+    summary_df = pd.DataFrame(summary).sort_values("年份", ascending=False)
 
-summary_df = pd.DataFrame(summary).sort_values("年份", ascending=False)
+    return all_data, summary_df
 
-# ==============================
-# 年度總覽
-# ==============================
 
-st.subheader("1️⃣年度統計")
-st.dataframe(summary_df, use_container_width=True)
+all_data, summary_df = load_data()
 
 # ==============================
-# 年度詳細頁
+# 1️⃣ 年度統計（卡片顯示）
 # ==============================
 
-st.subheader("2️⃣每日行程")
+st.subheader("1️⃣ 年度統計")
+
+for _, row in summary_df.iterrows():
+
+    with st.container():
+        st.markdown(f"""
+        ### 🔥 {row['年份']} 年
+        """)
+        
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric("總天數", row["總天數"])
+        col2.metric("去程天數", row["去程天數"])
+        col3.metric("回程天數", row["回程天數"])
+
+        col4, col5, col6 = st.columns(3)
+
+        col4.metric("總時間(小時)", row["總時間"])
+        col5.metric("去程時間(小時)", row["去程時間"])
+        col6.metric("回程時間(小時)", row["回程時間"])
+
+        st.markdown("---")
+
+# ==============================
+# 2️⃣ 每日行程（分日顯示）
+# ==============================
+
+st.subheader("2️⃣ 每日行程")
 
 selected_year = st.selectbox("選擇年份", summary_df["年份"])
 
 year_df = all_data[selected_year]
 
-st.write(f"{selected_year} 年每日行程")
+grouped = year_df.groupby(['月', '日'])
 
-daily_df = year_df[['月', '日', '時間', '地點', '去回程']].copy()
-st.dataframe(daily_df, use_container_width=True)
+for (m, d), g in grouped:
+
+    st.markdown(f"### 📍 {m}月{d}日")
+
+    display_df = g[['時間', '地點', '去回程']].copy()
+
+    st.dataframe(display_df, use_container_width=True)
 
 # ==============================
-# 地點關鍵字搜尋
+# 3️⃣ 地點關鍵字搜尋
 # ==============================
 
-st.subheader("3️⃣地點查詢")
+st.subheader("3️⃣ 地點查詢")
 
 keyword = st.text_input("輸入地點關鍵字")
 
 if keyword:
+
     results = []
 
     for year, df in all_data.items():
+
         match_df = df[df['地點'].astype(str).str.contains(keyword, na=False)]
 
         for _, row in match_df.iterrows():
@@ -130,6 +161,10 @@ if keyword:
 
     if results:
         result_df = pd.DataFrame(results)
+        result_df = result_df.sort_values(
+            ["年份", "月", "日"],
+            ascending=[False, True, True]
+        )
         st.dataframe(result_df, use_container_width=True)
     else:
         st.warning("沒有找到相關地點")

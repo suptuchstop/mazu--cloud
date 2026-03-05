@@ -6,22 +6,26 @@ from io import BytesIO
 st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
 #放置圖片(浮水效果)
+import base64
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
+img_base64 = get_base64_image("mazu_logo.png")
 st.markdown(
-    """
+    f"""
     <style>
-    .watermark {
+    .watermark {{
         position: fixed;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        opacity: 0.20;
+        opacity: 0.18;
         z-index: 0;
         pointer-events: none;
-        filter: drop-shadow(0 0 20px gold);
-    }
+        filter: drop-shadow(0 0 30px gold);
+    }}
     </style>
-
-    <img src="mazu_logo.png" class="watermark" width="600">
+    <img src="data:image/png;base64,{img_base64}" class="watermark" width="650">
     """,
     unsafe_allow_html=True
 )

@@ -20,7 +20,7 @@ st.markdown(
         background: linear-gradient(
             135deg,
             #2b0000 0%,
-            #4b0000 40%,
+            #4b0000 50%,
             #1a0000 100%
         );
         color: #ffffff;
@@ -32,10 +32,10 @@ st.markdown(
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        opacity: 0.08;
+        opacity: 0.28;
         z-index: 0;
         pointer-events: none;
-        filter: drop-shadow(0 0 60px gold);
+        filter: drop-shadow(0 0 80px gold);
     }}
 
     /* 讓內容浮在上層 */

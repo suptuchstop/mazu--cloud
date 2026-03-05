@@ -91,13 +91,13 @@ all_data, summary_df = load_data()
 # 1️⃣ 年度統計（卡片顯示）
 # ==============================
 
-st.subheader("1️⃣ 年度統計")
+st.subheader("1️⃣年度統計")
 
 for _, row in summary_df.iterrows():
 
     with st.container():
         st.markdown(f"""
-        ### 🔥 {row['年份']} 年
+        ###🔴{row['年份']}年
         """)
         
         col1, col2, col3 = st.columns(3)
@@ -118,7 +118,7 @@ for _, row in summary_df.iterrows():
 # 2️⃣ 每日行程（分日顯示）
 # ==============================
 
-st.subheader("2️⃣ 每日行程")
+st.subheader("2️⃣每日行程")
 
 selected_year = st.selectbox("選擇年份", summary_df["年份"])
 
@@ -128,7 +128,7 @@ grouped = year_df.groupby(['月', '日'])
 
 for (m, d), g in grouped:
 
-    st.markdown(f"### 📍 {m}月{d}日")
+    st.markdown(f"###📍{m}月{d}日")
 
     display_df = g[['時間', '地點', '去回程']].copy()
 
@@ -138,7 +138,7 @@ for (m, d), g in grouped:
 # 3️⃣ 地點關鍵字搜尋
 # ==============================
 
-st.subheader("3️⃣ 地點查詢")
+st.subheader("3️⃣地點查詢")
 
 keyword = st.text_input("輸入地點關鍵字")
 

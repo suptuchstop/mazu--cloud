@@ -49,23 +49,7 @@ st.markdown(
         color: white !important;
     }
 
-    [data-testid="stMetricValue"] {
-        color: white !important;
-    }
 
-    /* 🔥 dataframe 背景透明 */
-    [data-testid="stDataFrame"] {
-        background-color: transparent !important;
-    }
-
-    [data-testid="stDataFrame"] div {
-       background-color: transparent !important;
-    }
-
-    [data-testid="stDataFrame"] thead {
-    background-color: transparent !important;
-    }
-    
     </style>
 
     <img src="data:image/png;base64,{img_base64}" class="watermark" width="700">

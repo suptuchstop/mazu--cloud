@@ -14,22 +14,42 @@ img_base64 = get_base64_image("mazu_logo.png")
 st.markdown(
     f"""
     <style>
+
+    /* 🔥 暗紅漸層背景 */
+    .stApp {{
+        background: linear-gradient(
+            135deg,
+            #2b0000 0%,
+            #4b0000 40%,
+            #1a0000 100%
+        );
+        color: #ffffff;
+    }}
+
+    /* 🔥 浮水印 */
     .watermark {{
         position: fixed;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        opacity: 0.18;
+        opacity: 0.08;
         z-index: 0;
         pointer-events: none;
-        filter: drop-shadow(0 0 30px gold);
+        filter: drop-shadow(0 0 60px gold);
     }}
+
+    /* 讓內容浮在上層 */
+    section[data-testid="stMain"] {{
+        position: relative;
+        z-index: 1;
+    }}
+
     </style>
-    <img src="data:image/png;base64,{img_base64}" class="watermark" width="650">
+
+    <img src="data:image/png;base64,{img_base64}" class="watermark" width="700">
     """,
     unsafe_allow_html=True
 )
-
 
 st.title("🔥白沙屯媽進香資料記錄🔥                            βŁãÇķ™ 製")
 
@@ -114,31 +134,30 @@ def load_data():
 all_data, summary_df = load_data()
 
 # ==============================
-# 1️⃣ 年度統計（卡片顯示）
+# 1️⃣ 年度統計（選年份,卡片顯示）
 # ==============================
 
 st.subheader("1️⃣年度統計")
 
-for _, row in summary_df.iterrows():
+selected_year_stat = st.selectbox(
+    "選擇統計年份",
+    summary_df["年份"],
+    key="year_stat"
+)
 
-    with st.container():
-        st.markdown(f"""
-        ###   🔴{row['年份']}年
-        """)
-        
-        col1, col2, col3 = st.columns(3)
+year_stat = summary_df[summary_df["年份"] == selected_year_stat].iloc[0]
 
-        col1.metric("總天數", row["總天數"])
-        col2.metric("去程天數", row["去程天數"])
-        col3.metric("回程天數", row["回程天數"])
+col1, col2, col3 = st.columns(3)
+col1.metric("總天數", year_stat["總天數"])
+col2.metric("去程天數", year_stat["去程天數"])
+col3.metric("回程天數", year_stat["回程天數"])
 
-        col4, col5, col6 = st.columns(3)
+col4, col5, col6 = st.columns(3)
+col4.metric("總時間(小時)", year_stat["總時間"])
+col5.metric("去程時間(小時)", year_stat["去程時間"])
+col6.metric("回程時間(小時)", year_stat["回程時間"])
 
-        col4.metric("總時間(小時)", row["總時間"])
-        col5.metric("去程時間(小時)", row["去程時間"])
-        col6.metric("回程時間(小時)", row["回程時間"])
-
-        st.markdown("---")
+st.markdown("---")
 
 # ==============================
 # 2️⃣ 每日行程（分日顯示）

@@ -5,7 +5,7 @@ from io import BytesIO
 
 st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
-st.title("🔴 白沙屯媽進香資料記錄🔴 ")
+st.title("🔥白沙屯媽進香資料記錄🔥                            βŁãÇķ™ 製")
 
 file_url = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
 
@@ -94,7 +94,7 @@ st.dataframe(summary_df, use_container_width=True)
 # 年度詳細頁
 # ==============================
 
-st.subheader("2️⃣年度詳細資料")
+st.subheader("2️⃣每日行程")
 
 selected_year = st.selectbox("選擇年份", summary_df["年份"])
 
@@ -109,7 +109,7 @@ st.dataframe(daily_df, use_container_width=True)
 # 地點關鍵字搜尋
 # ==============================
 
-st.subheader("3️⃣地點關鍵字搜尋")
+st.subheader("3️⃣地點查詢")
 
 keyword = st.text_input("輸入地點關鍵字")
 

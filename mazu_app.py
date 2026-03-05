@@ -97,7 +97,7 @@ for _, row in summary_df.iterrows():
 
     with st.container():
         st.markdown(f"""
-        ###🔴{row['年份']}年
+        ###   🔴{row['年份']}年
         """)
         
         col1, col2, col3 = st.columns(3)
@@ -128,7 +128,7 @@ grouped = year_df.groupby(['月', '日'])
 
 for (m, d), g in grouped:
 
-    st.markdown(f"###📍{m}月{d}日")
+    st.markdown(f"###   📍{m}月{d}日")
 
     display_df = g[['時間', '地點', '去回程']].copy()
 

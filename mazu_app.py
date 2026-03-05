@@ -5,6 +5,27 @@ from io import BytesIO
 
 st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
+#放置圖片(浮水效果)
+st.markdown(
+    """
+    <style>
+    .watermark {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        opacity: 0.08;
+        z-index: 0;
+        pointer-events: none;
+    }
+    </style>
+
+    <img src="mazu_logo.png" class="watermark" width="600">
+    """,
+    unsafe_allow_html=True
+)
+
+
 st.title("🔥白沙屯媽進香資料記錄🔥                            βŁãÇķ™ 製")
 
 file_url = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"

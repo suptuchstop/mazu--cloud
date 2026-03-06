@@ -4,7 +4,7 @@ import requests
 from io import BytesIO
 import base64
 from datetime import timedelta
-# 🚨 刪除：from streamlit_javascript import st_javascript # 我們不再依賴 JS
+# 🚨 刪除：from streamlit_javascript import st_javascript # 我們徹底放棄它
 import plotly.express as px # 🚨 新增：用於繪製互動式圖表
 
 # ==============================
@@ -35,12 +35,15 @@ def get_base64_image(image_path):
 img_base64 = get_base64_image(WATERMARK_IMAGE_PATH)
 
 # ==============================
-# 終極暴力 CSS 優化 (完全不依賴 JS)
+# 🚨 視覺調和 CSS 優化 (放棄透明，改用深色融和+清晰白字)
 # ==============================
+# 定義主題深色
+theme_dark_color = "#220000" # 深暗紅/黑
+
 ultimate_css = f"""
 <style>
     /* ----------------------------------------------------------- */
-    /* 1. 全域設定：背景與字體 (白字) */
+    /* 1. 全域設定：背景與字體 (強大白字) */
     /* ----------------------------------------------------------- */
     .stApp {{
         background: linear-gradient(
@@ -49,10 +52,11 @@ ultimate_css = f"""
             #4b0000 50%,
             #1a0000 100%
         );
+        /* 🚨 關鍵：全域字體設為白色 */
         color: #ffffff !important;
     }}
 
-    /* 強制所有文字變白 */
+    /* 強制所有標籤（Label）、普通文字、跨年份地點查詢等變白 */
     .stApp label, .stApp p, .stApp span, .stApp div {{
         color: #ffffff !important;
     }}
@@ -83,15 +87,16 @@ ultimate_css = f"""
     }}
 
     /* ----------------------------------------------------------- */
-    /* 🚨 終極暴力：表格 (Dataframe) 全透明優化 */
-    /* 利用特定元件的獨特屬性和通用屬性偽裝法 */
+    /* 🚨 視覺調和：表格 (Dataframe) 深色化+強大白字 */
+    /* 將預設白色改為深主題色，強大白字網格清晰 */
     /* ----------------------------------------------------------- */
     [data-testid="stDataFrame"] {{
-        background-color: transparent !important;
-        border: none !important;
+        background-color: {theme_dark_color} !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        border-radius: 4px;
     }}
     
-    /* 強制表格內部所有層級設為透明 */
+    /* 強制表格內部所有層級設為深色背景，字體變白 */
     [data-testid="stDataFrame"] div,
     [data-testid="stDataFrame"] table,
     [data-testid="stDataFrame"] thead,
@@ -100,48 +105,50 @@ ultimate_css = f"""
     [data-testid="stDataFrame"] th,
     [data-testid="stDataFrame"] td,
     [data-testid="stDataFrame"] canvas {{
-        background-color: transparent !important;
-        color: #ffffff !important; /* 儲存格文字變白 */
-        border-color: rgba(255, 255, 255, 0.1) !important; /* 淡淡的白色網格線 */
+        background-color: {theme_dark_color} !important;
+        color: #ffffff !important; /* 儲存格文字強制變白 */
+        border-color: rgba(255, 255, 255, 0.15) !important; /* 淡淡的白色網格線，清晰可見 */
     }}
 
-    /* 表格頭部 (Header) 文字變白並加粗 */
+    /* 表格頭部 (Header) 文字變白並加粗，背景稍微加深 */
     [data-testid="stDataFrame"] thead th {{
         color: #ffffff !important;
         font-weight: bold !important;
+        background-color: #1a0000 !important;
     }}
 
-    /* 滑鼠懸停 (Hover) 時的行背景色 */
+    /* 滑鼠懸停 (Hover) 時的行背景色，稍微變亮以增加層次感 */
     [data-testid="stDataFrame"] tbody tr:hover td {{
-        background-color: rgba(255, 255, 255, 0.05) !important;
+        background-color: rgba(255, 255, 255, 0.08) !important;
     }}
 
     /* ----------------------------------------------------------- */
-    /* 🚨 終極暴力：輸入元件 (Selectbox, Text Input) 全透明優化 */
+    /* 🚨 視覺調和：輸入元件 (Selectbox, Text Input) 深色化+強大白字 */
     /* ----------------------------------------------------------- */
-    /* 下拉選單和打字欄位全透明 */
+    /* 下拉選單和打字欄位背景改為深色，字體變白 */
     .stSelectbox div[data-baseweb="select"],
     .stTextInput div[data-baseweb="base-input"],
-    .stTextInput div[role="searchbox"] input,
-    input {{
-        background-color: transparent !important; /* 輸入框背景透明 */
-        border-color: rgba(255, 255, 255, 0.3) !important; /* 邊框改為半透明白 */
+    input,
+    .stTextInput input,
+    .stTextInput div[role="searchbox"] input {{
+        background-color: {theme_dark_color} !important; /* 輸入框背景深色 */
+        border-color: rgba(255, 255, 255, 0.4) !important; /* 邊框改為較明顯的半透明白 */
         border-radius: 4px;
-        color: #ffffff !important; /* 輸入的文字變白 */
+        color: #ffffff !important; /* 輸入的文字強制變白 */
     }}
 
     /* 輸入框內的文字顏色 */
     .stSelectbox div[data-baseweb="select"] div,
     .stTextInput div[data-baseweb="base-input"] input,
-    .stTextInput div[role="searchbox"] input,
-    input {{
+    input,
+    .stTextInput input {{
         color: #ffffff !important;
     }}
     
-    /* 🚨 關鍵：下拉選單和文字輸入框的預設樣式在部分環境下無法去除 */
-    /* 試圖強制消除內部背景色 */
-    [data-baseweb="select"] input {{
-        background: transparent !important;
+    /* 預設提示文字 (Placeholder) 在深色背景下需要稍微變暗，否則文字會太亮看不到。
+       如果您想要 placeholder 也是實心白字，請刪除這一小段 CSS。 */
+    input::placeholder, .stTextInput input::placeholder {{
+        color: rgba(255, 255, 255, 0.5) !important;
     }}
 
     /* 下拉箭頭變白 */
@@ -149,41 +156,43 @@ ultimate_css = f"""
         fill: #ffffff !important;
     }}
 
-    /* 🚨 關鍵：下拉選單的「選項列表」保持高透明黑色，確保可讀性 */
+    /* 下拉選單的「選項列表」保持高透明黑色，確保選項文字白色清晰 */
     div[data-baseweb="popover"] ul {{
-        background-color: rgba(0, 0, 0, 0.8) !important;
+        background-color: rgba(0, 0, 0, 0.9) !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }}
     
-    /* 選項列表文字變白 */
     div[data-baseweb="popover"] ul li {{
         color: #ffffff !important;
     }}
     
-    /* 滑鼠懸停在選項上時 */
     div[data-baseweb="popover"] ul li:hover {{
         background-color: rgba(255, 255, 255, 0.1) !important;
     }}
 
     /* ----------------------------------------------------------- */
-    /* 5. 其他 UI 微調與 Expander 白色字體 */
+    /* 5. 其他 UI 微調與 Expander 清晰白字 */
     /* ----------------------------------------------------------- */
     
-    /* 分隔線顏色 */
     hr {{
         border-color: rgba(255, 255, 255, 0.2) !important;
     }}
 
-    /* Expander（折疊區塊）樣式調整，確保標題字體白色 */
-    .st-emotion-cache-16un4o p, .st-emotion-cache-p4m44u p {{
-        color: #ffffff !important;
-    }}
-    
-    /* Expander 背景透明化 */
+    /* Expander（折疊區塊）樣式調整，確保背景和標題字體白色清晰 */
     div[data-testid="stExpander"] {{
-        background-color: transparent !important;
+        background-color: {theme_dark_color} !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
         border-radius: 4px;
+    }}
+    
+    div[data-testid="stExpander"] p,
+    .stEmotion-cache-16un4o p, .stEmotion-cache-p4m44u p {{
+        color: #ffffff !important;
+    }}
+
+    /* 確保統計指標卡 (st.metric) 的字體也是白色 */
+    .stMetric label, .stMetric p, .stMetric div {{
+        color: #ffffff !important;
     }}
 
     /* 確保 Plotly 圖表的工具列按鈕也是白色 */
@@ -305,6 +314,7 @@ if xls:
     # ==============================
     st.subheader("1️⃣ 年度統計與行程細節")
 
+    # [年份下拉選單] -> 🚨 CSS 會強制背景變深色，文字變白色
     selected_year = st.selectbox(
         "選擇要查看的年份",
         available_years,
@@ -335,7 +345,7 @@ if xls:
                 display_df['完整時間'] = display_df['完整時間'].dt.strftime('%H:%M')
                 display_df = display_df.rename(columns={'完整時間': '時間'})
                 
-                # [每日詳細行程表格] -> 🚨 CSS 會嘗試偽裝為透明
+                # [每日詳細行程表格] -> 🚨 CSS 會將背景變深色，文字清晰白色
                 st.dataframe(display_df, use_container_width=True, key=f"df_{m}_{d}")
     
     # ==============================
@@ -362,6 +372,7 @@ if xls:
 
     with analysis_col2:
         # 使用 Plotly 繪製互動式分組長條圖
+        # 視覺樣式：透明底、白色字體
         if not daily_stats.empty:
             # 建立圖表物件
             fig = px.bar(
@@ -372,7 +383,7 @@ if xls:
                 barmode="group", # ✅ 分組模式：柱子並排對比
                 labels={"day_number": "活動天數 (第X天)", "effective_hours": "移動時數 (小時)"},
                 title=f"{selected_year} 去回程每日移動時數對比",
-                color_discrete_map={'去': 'gold', '回': 'deepskyblue'} # 金色和藍色與主題搭配
+                color_discrete_map={'去': 'gold', '回': 'deepskyblue'} # 金色 and 藍色與主題搭配
             )
             
             # ✅ 強制設定圖表樣式為透明和白色
@@ -401,7 +412,7 @@ if xls:
     # ==============================
     st.subheader("2️⃣ 地點查詢 (跨年份搜尋)")
 
-    # [地點查詢文字輸入] -> 🚨 CSS 會嘗試偽裝為透明
+    # [地點查詢文字輸入] -> 🚨 CSS 會將背景變深色，打字文字清晰白色
     keyword = st.text_input("輸入地點關鍵字（例如：白沙屯拱天宮）", placeholder="搜尋地點...", key="search_input")
 
     if keyword:
@@ -424,7 +435,7 @@ if xls:
             final_result_df = final_result_df.sort_values(["日期時間"], ascending=[False])
             
             st.success(f"找到 {len(final_result_df)} 筆結果。")
-            # [搜尋結果表格] -> 🚨 CSS 會嘗試偽裝為透明
+            # [搜尋結果表格] -> 🚨 CSS 會將背景變深色，文字清晰白色
             st.dataframe(final_result_df, use_container_width=True, key="search_result_df")
         else:
             st.warning("沒有找到相關地點資訊。")

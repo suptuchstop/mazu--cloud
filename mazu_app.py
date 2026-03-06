@@ -4,6 +4,7 @@ import requests
 from io import BytesIO
 import base64
 from datetime import timedelta
+from streamlit_javascript import st_javascript # 🚨 必須安裝：pip install streamlit-javascript
 import plotly.express as px # 🚨 新增：用於繪製互動式圖表
 
 # ==============================
@@ -13,12 +14,12 @@ st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
 # 常數配置
 FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
-APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
-AUTHOR_TAG = " " # 您原本保留的空格
+APP_TITLE = "🔥 白沙屯媽進香資料記錄 🔥"
+AUTHOR_TAG = "βŁãÇķ™ 製"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
-# UI 介面優化（浮水印、全透明元件、白色字體）
+# UI 介面優化 Part 1：基礎 CSS (浮水印, 全域字體)
 # ==============================
 @st.cache_data
 def get_base64_image(image_path):
@@ -27,17 +28,16 @@ def get_base64_image(image_path):
         with open(image_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
     except FileNotFoundError:
-        # 如果找不到圖，回傳空字串
+        # 如果找不到圖，顯示警告但讓程式能跑
+        st.warning(f"找不到圖片檔案: {image_path}，浮水印和 CSS 優化可能受到影響。")
         return ""
 
 img_base64 = get_base64_image(WATERMARK_IMAGE_PATH)
 
-# 強大且精細的 CSS 優化 (保留您所有設定，微調 Expander)
-css_style = f"""
+# 全域基礎 CSS
+basic_css = f"""
 <style>
-    /* ----------------------------------------------------------- */
-    /* 1. 全域設定：背景與字體 */
-    /* ----------------------------------------------------------- */
+    /* 全域字體變白 */
     .stApp {{
         background: linear-gradient(
             135deg,
@@ -45,27 +45,29 @@ css_style = f"""
             #4b0000 50%,
             #1a0000 100%
         );
-        /* 🚨 關鍵：強制所有文字變白 */
         color: #ffffff !important;
     }}
-
-    /* 強制所有標籤（Label）和普通文字變白 */
+    
+    /* 強制所有文字變白 */
     .stApp label, .stApp p, .stApp span, .stApp div {{
         color: #ffffff !important;
     }}
+    
+    /* 標題變白 */
+    h1, h2, h3, h4, h5, h6 {{
+        color: #ffffff !important;
+    }}
 
-    /* ----------------------------------------------------------- */
-    /* 2. 浮水印 */
-    /* ----------------------------------------------------------- */
+    /* 浮水印 */
     .watermark {{
         position: fixed;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        opacity: 0.20;
+        opacity: 0.28;
         z-index: 0;
         pointer-events: none;
-        filter: drop-shadow(0 0 100px gold);
+        filter: drop-shadow(0 0 80px gold);
     }}
 
     /* 讓內容浮在上層 */
@@ -73,102 +75,27 @@ css_style = f"""
         position: relative;
         z-index: 1;
     }}
-
-    /* ----------------------------------------------------------- */
-    /* 3. 表格（Dataframe）全透明優化 */
-    /* ----------------------------------------------------------- */
-    [data-testid="stDataFrame"] {{
-        background-color: transparent !important;
-        border: none !important;
-    }}
-
-    [data-testid="stDataFrame"] div,
-    [data-testid="stDataFrame"] canvas,
-    [data-testid="stDataFrame"] table,
-    [data-testid="stDataFrame"] thead,
-    [data-testid="stDataFrame"] tbody,
-    [data-testid="stDataFrame"] tr,
-    [data-testid="stDataFrame"] th,
-    [data-testid="stDataFrame"] td {{
-        background-color: transparent !important;
-        color: #ffffff !important; 
-        border-color: rgba(255, 255, 255, 0.1) !important;
-    }}
-
-    [data-testid="stDataFrame"] thead th {{
-        color: #ffffff !important;
-        font-weight: bold !important;
-    }}
-
-    [data-testid="stDataFrame"] tbody tr:hover td {{
-        background-color: rgba(255, 255, 255, 0.05) !important;
-    }}
-
-    /* ----------------------------------------------------------- */
-    /* 4. 輸入元件（Selectbox, Text Input）全透明優化 */
-    /* ----------------------------------------------------------- */
-    .stSelectbox div[data-baseweb="select"],
-    .stTextInput div[data-baseweb="base-input"] {{
-        background-color: transparent !important;
-        border-color: rgba(255, 255, 255, 0.3) !important;
-        border-radius: 4px;
-        color: #ffffff !important;
-    }}
-
-    .stSelectbox div[data-baseweb="select"] div,
-    .stTextInput div[data-baseweb="base-input"] input {{
-        color: #ffffff !important;
-    }}
-
-    .stSelectbox svg {{
-        fill: #ffffff !important;
-    }}
-
-    div[data-baseweb="popover"] ul {{
-        background-color: rgba(0, 0, 0, 0.8) !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-    }}
-
-    div[data-baseweb="popover"] ul li {{
-        color: #ffffff !important;
-    }}
-
-    div[data-baseweb="popover"] ul li:hover {{
-        background-color: rgba(255, 255, 255, 0.1) !important;
-    }}
-
-    /* ----------------------------------------------------------- */
-    /* 5. 其他 UI 微調與 Plotly 白色字體 */
-    /* ----------------------------------------------------------- */
-    h1, h2, h3, h4, h5, h6 {{
-        color: #ffffff !important;
-    }}
     
+    /* 分隔線 */
     hr {{
         border-color: rgba(255, 255, 255, 0.2) !important;
     }}
-
-    /* 🚨 修正：Expander（折疊區塊）背景透明化 */
-    div[data-testid="stExpander"] {{
+    
+    /* Expander 透明化 */
+    [data-testid="stExpander"] {{
         background-color: transparent !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        border-radius: 4px;
-    }}
-    
-    /* Expander 標題顏色 */
-    div[data-testid="stExpander"] p {{
-        color: #ffffff !important;
     }}
 
-    /* 🚨 修正：確保 Plotly 圖表的工具列也是白色 */
+    /* 🚨 關鍵：確保 Plotly 圖表的工具列按鈕也是白色 */
     .modebar-btn svg {{
         fill: #ffffff !important;
     }}
 </style>
 """
 
-# 載入 CSS
-st.markdown(css_style, unsafe_allow_html=True)
+# 載入基礎 CSS
+st.markdown(basic_css, unsafe_allow_html=True)
 
 # 顯示浮水印
 if img_base64:
@@ -177,8 +104,124 @@ if img_base64:
         unsafe_allow_html=True
     )
 
-# 顯示標題
 st.title(f"{APP_TITLE}   {AUTHOR_TAG}")
+
+# ==============================
+# UI 介面優化 Part 2：JavaScript 穿透 Shadow DOM 強制透明 (保留您原本的邏輯)
+# ==============================
+def inject_shadow_css():
+    """使用 JavaScript 穿透 Shadow DOM，強制修改元件內部樣式為透明"""
+    
+    # CSS 程式碼塊 (用於注入)
+    shadow_css_content = """
+    <style>
+        /* ----------------------------------------- */
+        /* 1. 表格 (Dataframe) 內部透明化 */
+        /* ----------------------------------------- */
+        
+        /* 強制所有層級背景透明 */
+        :host {
+            background-color: transparent !important;
+        }
+        
+        div.st-dataframe-container,
+        div.st-dataframe-grid,
+        canvas {
+            background-color: transparent !important;
+            border: none !important;
+        }
+        
+        /* 儲存格文字變白，邊框變淡 */
+        div.st-dataframe-col-header,
+        div.st-dataframe-cell,
+        div.st-dataframe-row-header {
+            background-color: transparent !important;
+            color: #ffffff !important;
+            border-color: rgba(255, 255, 255, 0.1) !important;
+        }
+        
+        /* 表頭文字變白加粗 */
+        div.st-dataframe-col-header {
+            font-weight: bold !important;
+        }
+        
+        /* 滑鼠懸停時的淡淡白色 */
+        div.st-dataframe-cell:hover {
+            background-color: rgba(255, 255, 255, 0.05) !important;
+        }
+
+        /* ----------------------------------------- */
+        /* 2. 輸入元件 (Selectbox, Text Input) 內部透明化 */
+        /* ----------------------------------------- */
+        
+        /* 輸入框容器透明化 */
+        div[data-baseweb="select"],
+        div[data-baseweb="base-input"] {
+            background-color: transparent !important;
+            border-color: rgba(255, 255, 255, 0.3) !important; /* 邊框淡白 */
+            color: #ffffff !important;
+        }
+        
+        /* 輸入的文字和下拉選單文字變白 */
+        div[data-baseweb="select"] div,
+        input {
+            color: #ffffff !important;
+        }
+        
+        /* 下拉箭頭變白 */
+        svg {
+            fill: #ffffff !important;
+        }
+        
+        /* 🚨 關鍵：下拉選單的選項列表 (Popover) */
+        /* 選項列表必須有一定背景色，否則文字會混在一起。
+           這裡使用高透明度的黑色，兼顧透明感與可讀性。 */
+        div[data-baseweb="popover"] ul {
+            background-color: rgba(0, 0, 0, 0.8) !important;
+            border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        }
+        
+        /* 選項列表文字變白 */
+        div[data-baseweb="popover"] ul li {
+            color: #ffffff !important;
+        }
+        
+        /* 滑鼠懸停在選項上時 */
+        div[data-baseweb="popover"] ul li:hover {
+            background-color: rgba(255, 255, 255, 0.1) !important;
+        }
+    </style>
+    """
+    
+    # 執行 JavaScript，將 CSS 注入到所有具有 shadowRoot 的元件中
+    js_code = f"""
+    // 將 CSS 內容轉換為字串
+    const css = `{shadow_css_content}`;
+    
+    // 尋找頁面上所有可能包含 Shadow DOM 的元件
+    const components = document.querySelectorAll('st-dataframe, st-selectbox, st-text-input');
+    
+    components.forEach(comp => {{
+        // 如果元件有 shadowRoot
+        if (comp.shadowRoot) {{
+            // 檢查是否已經注入過
+            if (!comp.shadowRoot.querySelector('style.injected-transparent-css')) {{
+                const styleSheet = document.createElement("style");
+                styleSheet.type = "text/css";
+                styleSheet.innerText = css.replace('<style>', '').replace('</style>', '');
+                styleSheet.className = 'injected-transparent-css';
+                // 將樣式表插入到 Shadow Root 的頭部，確保能覆蓋預設樣式
+                comp.shadowRoot.prepend(styleSheet);
+            }}
+        }}
+    }});
+    
+    // 傳回一個值以符合 st_javascript 的要求
+    return "css_injected";
+    """
+    
+    # 呼叫 st_javascript 執行
+    st_javascript(js_code)
 
 # ==============================
 # 資料讀取與處理 (🚨 升級：新增分析邏輯)
@@ -186,7 +229,6 @@ st.title(f"{APP_TITLE}   {AUTHOR_TAG}")
 
 @st.cache_resource
 def fetch_raw_excel():
-    """僅負責遠端下載 Excel 檔案並載入為 ExcelFile 物件，最小化快取"""
     with st.spinner("正在從雲端讀取資料..."):
         try:
             response = requests.get(FILE_URL)
@@ -194,7 +236,7 @@ def fetch_raw_excel():
             excel_data = BytesIO(response.content)
             return pd.ExcelFile(excel_data, engine="openpyxl")
         except Exception as e:
-            st.error(f"資料讀取失敗，請檢查網路或檔案連結。錯誤資訊: {e}")
+            st.error(f"資料讀取失敗。錯誤資訊: {e}")
             return None
 
 @st.cache_data
@@ -222,13 +264,12 @@ def process_year_data(_xls, year_sheet_name):
     df['月'] = df['月'].astype(int)
     df['日'] = df['日'].astype(int)
 
-    # 保留您原本的時間差計算邏輯 (單位: 秒)
     df['time_diff_sec'] = df['完整時間'].diff().dt.total_seconds()
     
-    # 保留您原本的有效行程篩選邏輯
+    # 🚨 您原本的有效行程篩選邏輯，這裡需要用來計算小時數
     valid_diff_mask = (df['time_diff_sec'] > 0) & (df['time_diff_sec'] <= 86400)
     
-    # 計算每小段行程的小時數
+    # 計算每小段行程的小時數，新增欄位 'effective_hours'
     df.loc[valid_diff_mask, 'effective_hours'] = df.loc[valid_diff_mask, 'time_diff_sec'] / 3600
     df['effective_hours'] = df['effective_hours'].fillna(0) # 確保無 NaN
 
@@ -256,9 +297,10 @@ def process_year_data(_xls, year_sheet_name):
     # 目標：計算「去程」和「回程」每一天的總移動時數。
     
     # 建立一個輔助欄位，標記這是「進香活動的第幾天」
+    # df['完整時間'].dt.date 提取日期部分
     df['activity_date'] = df['完整時間'].dt.date
     
-    # 分別對去程和回程按日期分組，計算每日總時數
+    # 分別對去程和回程按日期分組，計算每日總時數 (groupy + sum)
     # .reset_index() 將分組後的索引轉回欄位
     daily_stats = df.groupby(['去回程', 'activity_date'])['effective_hours'].sum().reset_index()
     
@@ -266,7 +308,7 @@ def process_year_data(_xls, year_sheet_name):
     # 利用 rank() 函式，對每個分組進行排序編號
     daily_stats['day_number'] = daily_stats.groupby('去回程')['activity_date'].rank(method='first').astype(int)
 
-    # 返回處理後的 DataFrame、統計摘要，以及新增的繪圖資料
+    # 返回處理後的 DataFrame、統計摘要，以及新增的每日統計資料 (用於繪圖)
     return df, year_summary, daily_stats
 
 # ==============================
@@ -288,7 +330,7 @@ if xls:
         key="year_selector"
     )
 
-    # 🚨 升級：函式多回傳一個 daily_stats
+    # 🚨 升級：函式回傳多一個daily_stats
     year_df, year_stat, daily_stats = process_year_data(xls, selected_year)
 
     if year_stat:
@@ -309,11 +351,9 @@ if xls:
             for (m, d), group in grouped:
                 st.markdown(f"#### 📍 {m}月{d}日")
                 display_df = group[['完整時間', '地點', '去回程']].copy()
-                # 為了讓表格顯示更乾淨，將時間欄位轉換為字串
                 display_df['完整時間'] = display_df['完整時間'].dt.strftime('%H:%M')
                 display_df = display_df.rename(columns={'完整時間': '時間'})
                 
-                # 📢 表格會自動套用 CSS 成為全透明
                 st.dataframe(display_df, use_container_width=True, key=f"df_{m}_{d}")
     
     # ==============================
@@ -352,7 +392,7 @@ if xls:
                 barmode="group", # ✅ 分組模式：柱子並排對比
                 labels={"day_number": "活動天數 (第X天)", "effective_hours": "移動時數 (小時)"},
                 title=f"{selected_year} 去回程每日移動時數對比",
-                color_discrete_map={'去': 'gold', '回': 'deepskyblue'} # 手動設定特定顏色，金色和藍色與主題搭配
+                color_discrete_map={'去': 'gold', '回': 'deepskyblue'} # 金色和藍色與主題搭配
             )
             
             # ✅ 強制設定圖表樣式為透明和白色
@@ -360,9 +400,9 @@ if xls:
                 paper_bgcolor='rgba(0,0,0,0)', # 紙張背景透明
                 plot_bgcolor='rgba(0,0,0,0)', # 繪圖區背景透明
                 font_color='#ffffff', # 所有文字設為白色
-                title_font_size=20, # 標題字體
-                legend_title_font_color='#ffffff', # 圖例標題顏色
-                legend_font_color='#ffffff' # 圖例文字顏色
+                title_font_size=20, 
+                legend_title_font_color='#ffffff', 
+                legend_font_color='#ffffff'
             )
             
             # 設定座標軸樣式
@@ -374,19 +414,19 @@ if xls:
         else:
             st.warning("無每日統計資料，無法生成圖表。")
 
-    # ==============================
-    # 2️⃣ 地點關鍵字搜尋 (與原程式相同)
-    # ==============================
     st.markdown("---")
+
+    # ==============================
+    # 2️⃣ 地點關鍵字搜尋
+    # ==============================
     st.subheader("2️⃣ 地點查詢 (跨年份搜尋)")
 
-    # 📢 打字欄位會自動套用 CSS 成為透明
-    keyword = st.text_input("輸入地點關鍵字（例如：白沙屯拱天宮）", placeholder="搜尋地點...")
+    keyword = st.text_input("輸入地點關鍵字（例如：白沙屯拱天宮）", placeholder="搜尋地點...", key="search_input")
 
     if keyword:
         results_df = []
         for year in available_years:
-            # 🚨 升級：函式回傳多一個參數，搜尋時用底線 _ 忽略它
+            # 🚨 升級：函式回傳三個參數，搜尋時用底線 _ 忽略它
             df_for_search, _, _ = process_year_data(xls, year)
             match_df = df_for_search[df_for_search['地點'].astype(str).str.contains(keyword, na=False)]
             
@@ -403,10 +443,14 @@ if xls:
             final_result_df = final_result_df.sort_values(["日期時間"], ascending=[False])
             
             st.success(f"找到 {len(final_result_df)} 筆結果。")
-            # 📢 表格會自動套用 CSS 成為全透明
             st.dataframe(final_result_df, use_container_width=True, key="search_result_df")
         else:
             st.warning("沒有找到相關地點資訊。")
+
+    # ==============================
+    # 🚨 關鍵：最後執行 JS 注入 (解決Shadow DOM不透明問題)
+    # ==============================
+    inject_shadow_css()
 
 else:
     st.warning("無法載入資料，請確認遠端檔案連結。")

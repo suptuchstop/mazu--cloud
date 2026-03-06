@@ -4,7 +4,6 @@ import requests
 from io import BytesIO
 import base64
 from datetime import timedelta
-import plotly.express as px # 🚨 新增：用於繪製互動式圖表
 
 # ==============================
 # 應用程式配置
@@ -13,12 +12,12 @@ st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
 # 常數配置
 FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
-APP_TITLE = "🔥 白沙屯媽進香資料記錄 🔥"
-AUTHOR_TAG = "βŁãÇķ™" # 您原本保留的格
+APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
+AUTHOR_TAG = " "
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
-# UI 介面優化 Part 1：基礎 CSS (浮水印, 全域字體)
+# UI 介面優化（浮水印、全透明元件、白色字體）
 # ==============================
 @st.cache_data
 def get_base64_image(image_path):
@@ -27,22 +26,16 @@ def get_base64_image(image_path):
         with open(image_path, "rb") as img_file:
             return base64.b64encode(img_file.read()).decode()
     except FileNotFoundError:
-        # 如果找不到圖，顯示警告但讓程式能跑
-        st.warning(f"找不到圖片檔案: {image_path}，浮水印和 CSS 優化可能受到影響。")
+        # 為了讓程式能跑，如果找不到圖，回傳空字串
         return ""
 
 img_base64 = get_base64_image(WATERMARK_IMAGE_PATH)
 
-# ==============================
-# 🚨 終極純 CSS 視覺優化 (放棄透明，改用深色融和+強大白字)
-# ==============================
-# 定義主題深色
-theme_dark_color = "#220000" # 深咖啡/暗紅
-
-ultimate_css = f"""
+# 強大且精細的 CSS 優化
+css_style = f"""
 <style>
     /* ----------------------------------------------------------- */
-    /* 1. 全域設定：背景與字體 (白字) */
+    /* 1. 全域設定：背景與字體 */
     /* ----------------------------------------------------------- */
     .stApp {{
         background: linear-gradient(
@@ -51,17 +44,12 @@ ultimate_css = f"""
             #4b0000 50%,
             #1a0000 100%
         );
-        /* 🚨 關鍵：全域字體設為白色 */
+        /* 🚨 關鍵：強制所有文字變白 */
         color: #ffffff !important;
     }}
 
-    /* 強制所有標籤（Label）、普通文字、跨年份地點查詢等變白 */
+    /* 強制所有標籤（Label）和普通文字變白 */
     .stApp label, .stApp p, .stApp span, .stApp div {{
-        color: #ffffff !important;
-    }}
-    
-    /* 標題變白 */
-    h1, h2, h3, h4, h5, h6 {{
         color: #ffffff !important;
     }}
 
@@ -73,7 +61,7 @@ ultimate_css = f"""
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        opacity: 0.28;
+        opacity: 0.20;
         z-index: 0;
         pointer-events: none;
         filter: drop-shadow(0 0 100px gold);
@@ -86,130 +74,116 @@ ultimate_css = f"""
     }}
 
     /* ----------------------------------------------------------- */
-    /* 🚨 視覺優化與修正「看不見」：表格 (Dataframe) 深色化+強大白字 */
-    /* 將預設白色改為深主題色，強大純白字解決看不見問題 */
+    /* 3. 表格（Dataframe）全透明優化 */
     /* ----------------------------------------------------------- */
+    /* 隱藏表格元件的預設邊框和背景 */
     [data-testid="stDataFrame"] {{
-        background-color: {theme_dark_color} !important;
-        border: 1px solid rgba(255, 255, 255, 0.3) !important;
-        border-radius: 4px;
+        background-color: transparent !important;
+        border: none !important;
     }}
-    
-    /* 🚨 關鍵：針對 Streamlit 新版 Dataframe 的 Canvas/Shadow DOM 進行白字覆蓋 */
-    /* 強制表格內部所有層級設為深色背景，字體變為純白色 (#FFFFFF) */
+
+    /* 針對表格內部的所有層級設為透明 */
     [data-testid="stDataFrame"] div,
+    [data-testid="stDataFrame"] canvas,
     [data-testid="stDataFrame"] table,
     [data-testid="stDataFrame"] thead,
     [data-testid="stDataFrame"] tbody,
     [data-testid="stDataFrame"] tr,
     [data-testid="stDataFrame"] th,
-    [data-testid="stDataFrame"] td,
-    [data-testid="stDataFrame"] canvas {{
-        background-color: {theme_dark_color} !important;
-        color: #ffffff !important; /* 儲存格文字強制純白色 */
-        border-color: rgba(255, 255, 255, 0.15) !important; /* 淡淡的白色網格線 */
+    [data-testid="stDataFrame"] td {{
+        background-color: transparent !important;
+        color: #ffffff !important; /* 儲存格文字變白 */
+        border-color: rgba(255, 255, 255, 0.1) !important; /* 淡淡的白色網格線 */
     }}
 
-    /* 表格頭部 (Header) 文字變白並加粗 */
+    /* 表格頭部（Header）文字變白並加粗 */
     [data-testid="stDataFrame"] thead th {{
         color: #ffffff !important;
         font-weight: bold !important;
-        background-color: #1a0000 !important;
     }}
 
-    /* 滑鼠懸停 (Hover) 時的行背景色 */
+    /* 滑鼠懸停（Hover）時的行背景色：淡淡的白色，增加互動感 */
     [data-testid="stDataFrame"] tbody tr:hover td {{
-        background-color: rgba(255, 255, 255, 0.08) !important;
+        background-color: rgba(255, 255, 255, 0.05) !important;
     }}
 
     /* ----------------------------------------------------------- */
-    /* 🚨 視覺優化與修正「看不見」：輸入元件 (Selectbox, Text Input) 深色化+強大白字 */
+    /* 4. 輸入元件（Selectbox, Text Input）全透明優化 */
     /* ----------------------------------------------------------- */
-    /* 下拉選單和打字欄位背景改為深色，字體變為純白 */
+    /* 通用輸入框樣式（Selectbox 和 Text Input） */
     .stSelectbox div[data-baseweb="select"],
-    .stTextInput div[data-baseweb="base-input"],
-    input,
-    .stTextInput input,
-    .stTextInput div[role="searchbox"] input {{
-        background-color: {theme_dark_color} !important; /* 輸入框背景深色 */
-        border-color: rgba(255, 255, 255, 0.5) !important; /* 邊框 */
+    .stTextInput div[data-baseweb="base-input"] {{
+        background-color: transparent !important; /* 輸入框背景透明 */
+        border-color: rgba(255, 255, 255, 0.3) !important; /* 邊框改為半透明白 */
         border-radius: 4px;
-        color: #ffffff !important; /* 打字文字強制純白色 */
+        color: #ffffff !important; /* 輸入的文字變白 */
     }}
 
-    /* 輸入框內的文字顏色 */
+    /* 下拉選單和輸入框內的文字顏色 */
     .stSelectbox div[data-baseweb="select"] div,
-    .stTextInput div[data-baseweb="base-input"] input,
-    input,
-    .stTextInput input {{
+    .stTextInput div[data-baseweb="base-input"] input {{
         color: #ffffff !important;
     }}
 
-    /* 下拉箭頭變白 */
-    .stSelectbox svg, .stTextInput svg, [data-baseweb="select"] svg {{
+    /* 下拉選單的箭頭顏色 */
+    .stSelectbox svg {{
         fill: #ffffff !important;
     }}
 
-    /* 🚨 關鍵：下拉選單的「選項列表」深色背景，確保選項文字白色清晰 */
+    /* 🚨 關鍵：下拉選單的「選項列表」 */
+    /* 如果選項列表也完全透明，文字會跟底圖混在一起。
+       這裡使用高透明度的黑色，既有通透感，又能保證文字清晰。 */
     div[data-baseweb="popover"] ul {{
-        background-color: rgba(0, 0, 0, 0.9) !important;
+        background-color: rgba(0, 0, 0, 0.8) !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
     }}
-    
+
+    /* 選項列表中的文字變白 */
     div[data-baseweb="popover"] ul li {{
         color: #ffffff !important;
     }}
-    
+
+    /* 滑鼠懸停在選項上時的背景色 */
     div[data-baseweb="popover"] ul li:hover {{
         background-color: rgba(255, 255, 255, 0.1) !important;
     }}
 
     /* ----------------------------------------------------------- */
-    /* 5. 其他 UI 微調與 Expander 白色字體 */
+    /* 5. 其他 UI 微調 */
     /* ----------------------------------------------------------- */
+    /* 標題和副標題文字變白 */
+    h1, h2, h3, h4, h5, h6 {{
+        color: #ffffff !important;
+    }}
     
+    /* 分隔線顏色 */
     hr {{
         border-color: rgba(255, 255, 255, 0.2) !important;
     }}
 
-    /* Expander（折疊區塊）樣式調整，確保背景和標題字體白色清晰 */
-    div[data-testid="stExpander"] {{
-        background-color: {theme_dark_color} !important;
+    /* Expander（折疊區塊）樣式調整 */
+    .st-emotion-cache-p4m44u {{
+        background-color: transparent !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        border-radius: 4px;
-    }}
-    
-    div[data-testid="stExpander"] p,
-    .stEmotioncache-16un4o p, .stEmotioncache-p4m44u p {{
-        color: #ffffff !important;
-    }}
-
-    /* 確保統計指標卡 (st.metric) 的字體也是白色 */
-    .stMetric label, .stMetric p, .stMetric div {{
-        color: #ffffff !important;
-    }}
-
-    /* 確保 Plotly 圖表的工具列按鈕也是白色 */
-    .modebar-btn svg {{
-        fill: #ffffff !important;
     }}
 </style>
 """
 
-# 載入基礎 CSS
-st.markdown(ultimate_css, unsafe_allow_html=True)
+# 載入 CSS
+st.markdown(css_style, unsafe_allow_html=True)
 
-# 顯示浮水印
+# 顯示浮水印（如果有的話）
 if img_base64:
     st.markdown(
         f'<img src="data:image/png;base64,{img_base64}" class="watermark" width="700">',
         unsafe_allow_html=True
     )
 
+# 顯示標題
 st.title(f"{APP_TITLE}   {AUTHOR_TAG}")
 
 # ==============================
-# 資料讀取與處理 (🚨 保留分析邏輯)
+# 資料讀取與處理（與前一版相同）
 # ==============================
 
 @st.cache_resource
@@ -227,7 +201,7 @@ def fetch_raw_excel():
 
 @st.cache_data
 def process_year_data(_xls, year_sheet_name):
-    """處理單一月份的資料，計算統計資訊，並生成繪圖資料。"""
+    """處理單一月份的資料並計算統計資訊。"""
     df = pd.read_excel(_xls, sheet_name=year_sheet_name)
     df.columns = df.columns.str.strip()
 
@@ -250,20 +224,14 @@ def process_year_data(_xls, year_sheet_name):
     df['月'] = df['月'].astype(int)
     df['日'] = df['日'].astype(int)
 
-    # 計算時間差：用 diff() 取代迴圈，單位是秒
     df['time_diff_sec'] = df['完整時間'].diff().dt.total_seconds()
-    
-    # 您原本的有效行程篩選邏輯，這裡需要用來計算小時數
     valid_diff_mask = (df['time_diff_sec'] > 0) & (df['time_diff_sec'] <= 86400)
-    
-    # 計算每小段行程的小時數，新增欄位 'effective_hours'
     df.loc[valid_diff_mask, 'effective_hours'] = df.loc[valid_diff_mask, 'time_diff_sec'] / 3600
-    df['effective_hours'] = df['effective_hours'].fillna(0) # 確保無 NaN
+    df['effective_hours'] = df['effective_hours'].fillna(0)
 
     go_df = df[df['去回程'] == '去']
     back_df = df[df['去回程'] == '回']
 
-    # 1. 保留您原本的統計項目
     total_days = df[['月', '日']].drop_duplicates().shape[0]
     go_days = go_df[['月', '日']].drop_duplicates().shape[0]
     back_days = back_df[['月', '日']].drop_duplicates().shape[0]
@@ -280,20 +248,7 @@ def process_year_data(_xls, year_sheet_name):
         "回程時間": round(back_time, 2)
     }
 
-    # 🚨 2. 新增：深度分析所需的繪圖資料邏輯
-    # 目標：計算「去程」和「回程」每一天的總移動時數。
-    
-    # 建立一個輔助欄位，標記這是「進香活動的第幾天」
-    df['activity_date'] = df['完整時間'].dt.date
-    
-    # 分別對去程和回程按日期分組，計算每日總時數 (groupy + sum)
-    daily_stats = df.groupby(['去回程', 'activity_date'])['effective_hours'].sum().reset_index()
-    
-    # 建立一個欄位，標記這是「第幾天」(1, 2, 3...)
-    daily_stats['day_number'] = daily_stats.groupby('去回程')['activity_date'].rank(method='first').astype(int)
-
-    # 返回處理後的 DataFrame、統計摘要，以及新增的每日統計資料 (用於繪圖)
-    return df, year_summary, daily_stats
+    return df, year_summary
 
 # ==============================
 # 主程式邏輯
@@ -308,15 +263,13 @@ if xls:
     # ==============================
     st.subheader("1️⃣ 年度統計與行程細節")
 
-    # [年份下拉選單] -> 🚨 CSS 會強制背景變深色，文字清晰白色
     selected_year = st.selectbox(
         "選擇要查看的年份",
         available_years,
         key="year_selector"
     )
 
-    # 🚨 升級：函式回傳多一個daily_stats
-    year_df, year_stat, daily_stats = process_year_data(xls, selected_year)
+    year_df, year_stat = process_year_data(xls, selected_year)
 
     if year_stat:
         # 卡片顯示統計
@@ -331,74 +284,18 @@ if xls:
         col6.metric("回程時間", f"{year_stat['回程時間']} 小時")
 
         # 每日行程詳情
-        with st.expander(f"📚 點擊展開或收合 {selected_year} 每日詳細行程詳情", expanded=False):
+        with st.expander(f"點擊展開 / 收合 {selected_year} 每日行程詳情", expanded=False):
             grouped = year_df.groupby(['月', '日'])
             for (m, d), group in grouped:
                 st.markdown(f"#### 📍 {m}月{d}日")
                 display_df = group[['完整時間', '地點', '去回程']].copy()
+                # 為了讓表格顯示更乾淨，將時間欄位轉換為字串
                 display_df['完整時間'] = display_df['完整時間'].dt.strftime('%H:%M')
                 display_df = display_df.rename(columns={'完整時間': '時間'})
                 
-                # [每日詳細行程表格] -> 🚨 CSS 會將背景變深色，文字強制純白
-                st.dataframe(display_df, use_container_width=True, key=f"df_{m}_{d}")
+                # 📢 表格會自動套用 CSS 成為全透明
+                st.dataframe(display_df, use_container_width=True)
     
-    # ==============================
-    # 🚨 深度數據分析：去/回程每日節奏對比
-    # ==============================
-    st.markdown("---")
-    st.subheader(f"📊 深度數據分析：{selected_year} 去/回程每日節奏對比")
-    
-    # 建立新的分析區塊，包含 Metric 和圖表
-    analysis_col1, analysis_col2 = st.columns([1, 2]) # 比例 1:2
-    
-    with analysis_col1:
-        st.write(" ") # 增加間距
-        st.write(" ")
-        st.write("**方向性平均數據：**")
-        # 計算平均每日移動時數
-        avg_go_hours = round(year_stat["去程時間"] / year_stat["去程天數"], 1) if year_stat["去程天數"] > 0 else 0
-        avg_back_hours = round(year_stat["回程時間"] / year_stat["回程天數"], 1) if year_stat["回程天數"] > 0 else 0
-        
-        # 顯示指標卡 (st.metric 預設為白色)
-        st.metric("去程 平均每日移動時數", f"{avg_go_hours} 小時/天")
-        st.metric("回程 平均每日移動時數", f"{avg_back_hours} 小時/天")
-        st.info("📊 分析解讀：此指標能告訴您哪個階段（去或回）走得比較趕。")
-
-    with analysis_col2:
-        # 使用 Plotly 繪製互動式分組長條圖
-        # 視覺樣式：透明底、白色字體
-        if not daily_stats.empty:
-            # 建立圖表物件 (🚨 修正：括號正確閉合)
-            fig = px.bar(
-                daily_stats, 
-                x="day_number", # 橫軸：活動第幾天
-                y="effective_hours", # 縱軸：移動小時數
-                color="去回程", # 顏色：區分去和回
-                barmode="group", # ✅ 分組模式：柱子並排對比
-                labels={"day_number": "活動天數 (第X天)", "effective_hours": "移動時數 (小時)"},
-                title=f"{selected_year} 去回程每日移動時數對比",
-                color_discrete_map={'去': 'gold', '回': 'deepskyblue'}
-            )
-            
-            # ✅ 強制設定圖表樣式為透明和白色
-            fig.update_layout(
-                paper_bgcolor='rgba(0,0,0,0)', # 紙張背景透明
-                plot_bgcolor='rgba(0,0,0,0)', # 繪圖區背景透明
-                font_color='#ffffff', # 所有文字設為白色
-                title_font_size=20, 
-                legend_title_font_color='#ffffff', 
-                legend_font_color='#ffffff'
-            )
-            
-            # 設定座標軸樣式
-            fig.update_xaxes(showgrid=False, zeroline=False, color='#ffffff')
-            fig.update_yaxes(gridcolor='rgba(255, 255, 255, 0.1)', zeroline=False, color='#ffffff')
-            
-            # 在 Streamlit 中顯示 Plotly 圖表
-            st.plotly_chart(fig, use_container_width=True, key="direction_pacing_chart")
-        else:
-            st.warning("無每日統計資料，無法生成圖表。")
-
     st.markdown("---")
 
     # ==============================
@@ -406,14 +303,13 @@ if xls:
     # ==============================
     st.subheader("2️⃣ 地點查詢 (跨年份搜尋)")
 
-    # [地點查詢文字輸入] -> 🚨 CSS 會將背景變深色，文字清晰白色
-    keyword = st.text_input("輸入地點關鍵字（例如：北港朝天宮）", placeholder="搜尋地點...", key="search_input")
+    # 📢 打字欄位會自動套用 CSS 成為透明
+    keyword = st.text_input("輸入地點關鍵字（例如：白沙屯拱天宮）", placeholder="搜尋地點...")
 
     if keyword:
         results_df = []
         for year in available_years:
-            # 🚨 升級：函式回傳三個參數
-            df_for_search, _, _ = process_year_data(xls, year)
+            df_for_search, _ = process_year_data(xls, year)
             match_df = df_for_search[df_for_search['地點'].astype(str).str.contains(keyword, na=False)]
             
             if not match_df.empty:
@@ -429,8 +325,8 @@ if xls:
             final_result_df = final_result_df.sort_values(["日期時間"], ascending=[False])
             
             st.success(f"找到 {len(final_result_df)} 筆結果。")
-            # [搜尋結果表格] -> 🚨 CSS 會將背景變深色，文字清晰白色
-            st.dataframe(final_result_df, use_container_width=True, key="search_result_df")
+            # 📢 表格會自動套用 CSS 成為全透明
+            st.dataframe(final_result_df, use_container_width=True)
         else:
             st.warning("沒有找到相關地點資訊。")
 

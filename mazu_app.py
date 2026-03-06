@@ -13,7 +13,7 @@ st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 # 常數配置
 FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
 APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
-#AUTHOR_TAG = "βŁãÇķ™ 製"
+AUTHOR_TAG = " "
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================

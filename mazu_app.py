@@ -259,9 +259,9 @@ if xls:
     available_years = sorted(xls.sheet_names, reverse=True)
 
     # ==============================
-    # 1️⃣ 年度統計與行程細節
+    # 1️⃣ 年度統計與詳細行程
     # ==============================
-    st.subheader("1️⃣ 年度統計與行程細節")
+    st.subheader("1️⃣ 年度統計與詳細行程")
 
     selected_year = st.selectbox(
         "選擇要查看的年份",
@@ -283,7 +283,7 @@ if xls:
         col5.metric("去程時間", f"{year_stat['去程時間']} 小時")
         col6.metric("回程時間", f"{year_stat['回程時間']} 小時")
 
-        # 每日行程詳情
+        # 每日詳細行程
         with st.expander(f"點擊展開 / 收合 {selected_year} 每日行程詳情", expanded=False):
             grouped = year_df.groupby(['月', '日'])
             for (m, d), group in grouped:
@@ -304,7 +304,7 @@ if xls:
     st.subheader("2️⃣ 地點查詢 (跨年份搜尋)")
 
     # 📢 打字欄位會自動套用 CSS 成為透明
-    keyword = st.text_input("輸入地點關鍵字（例如：白沙屯拱天宮）", placeholder="搜尋地點...")
+    keyword = st.text_input("輸入地點關鍵字（例如：拱天宮）", placeholder="搜尋地點...")
 
     if keyword:
         results_df = []

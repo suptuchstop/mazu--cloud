@@ -12,8 +12,8 @@ st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
 # 常數配置
 FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
-APP_TITLE = "🔥 白沙屯媽進香資料記錄 🔥"
-AUTHOR_TAG = "βŁãÇķ™ 製"
+APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
+#AUTHOR_TAG = "βŁãÇķ™ 製"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
@@ -61,10 +61,10 @@ css_style = f"""
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        opacity: 0.28;
+        opacity: 0.20;
         z-index: 0;
         pointer-events: none;
-        filter: drop-shadow(0 0 80px gold);
+        filter: drop-shadow(0 0 100px gold);
     }}
 
     /* 讓內容浮在上層 */

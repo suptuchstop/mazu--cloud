@@ -121,41 +121,37 @@ if all_data:
     col6.metric("回程時數", f"{round(back_df['effective_hours'].sum(), 1)} hr")
 
     st.markdown("---")
-
-    # --- 2. 每日摘要與詳細行程 (關鍵邏輯強化) ---
+    # --- 2. 每日摘要與詳細行程 (表格完整顯示版) ---
     st.subheader(f"📅 {selected_year} 行程摘要")
     
     grouped = year_df.groupby("raw_date", sort=False)
 
     for idx, (g_date, g) in enumerate(grouped):
-        # 【步驟一】嚴格按時間排序
+        # 1. 確保時間由早到晚排序
         g_sorted = g.sort_values("完整時間", ascending=True)
         
-        # Line 1: 日期
+        # --- 摘要邏輯 ---
         line1 = g_date.strftime('%m/%d')
         
-        # Line 2: 當日 "起駕" 或 "登轎" (搜尋當天所有紀錄，只要包含關鍵字就抓)
-        # 修正：避免抓到當天第一筆非起駕的資料 (例如報備)
-        start_candidates = g_sorted[g_sorted['停駐駕'].astype(str).str.contains("起駕|登轎", na=False)]
-        if not start_candidates.empty:
-            s_node = start_candidates.iloc[0]
+        # Line 2: 找當天第一個 "登轎" 或 "起駕"
+        start_nodes = g_sorted[g_sorted['停駐駕'].astype(str).str.contains("起駕|登轎", na=False)]
+        if not start_nodes.empty:
+            s_node = start_nodes.iloc[0]
             line2 = f"{s_node['時間']}  {s_node['地點']}  {s_node['停駐駕']}"
         else:
-            # 如果整天都沒寫起駕，才顯示當天第一筆
             s_node = g_sorted.iloc[0]
             line2 = f"{s_node['時間']}  {s_node['地點']}  起駕"
         
-        # Line 3: 當日 "午休"
+        # Line 3: 找當天第一個 "午休"
         line3 = ""
         l_match = g_sorted[g_sorted['停駐駕'].astype(str).str.contains("午休", na=False)]
         if not l_match.empty:
             l_node = l_match.iloc[0]
             line3 = f"{l_node['時間']}  {l_node['地點']}  午休"
         
-        # Line 4: 當日 "駐駕" OR "朝天宮" OR "回宮"
+        # Line 4: 找當天最後一個關鍵終點
         line4 = ""
         end_found = False
-        # 按照優先權從後往前搜尋 (因為一天可能有多個狀態，要抓最後一個)
         for kw in ["回宮", "朝天宮", "駐駕"]:
             e_match = g_sorted[g_sorted['停駐駕'].astype(str).str.contains(kw, na=False)]
             if not e_match.empty:
@@ -165,7 +161,6 @@ if all_data:
                 end_found = True
                 break
         
-        # 如果當天完全沒寫駐駕相關，且不只一筆，補最後一筆
         if not end_found and len(g_sorted) > 1:
             e_node = g_sorted.iloc[-1]
             if not (e_node['時間'] == s_node['時間'] and e_node['地點'] == s_node['地點']):
@@ -174,15 +169,14 @@ if all_data:
         summary_lines = [line1, line2]
         if line3: summary_lines.append(line3)
         if line4: summary_lines.append(line4)
-            
         label_text = "\n".join(summary_lines)
         
-        # 詳細行程：100% 顯示該日所有筆數，一筆都不刪
+        # --- 詳細行程 (點開後) ---
         with st.expander(label_text):
-            cols = ['時間', '地點', '去回程']
-            if '停駐駕' in g_sorted.columns:
-                cols.append('停駐駕')
-            st.dataframe(g_sorted[cols], use_container_width=True)
+            # 這裡就是關鍵：直接顯示 g_sorted 的全部，不選欄位，不濾資料
+            # 這樣 Excel 裡面的 大甲、清水、伸港 等每一筆都會跑出來
+            st.dataframe(g_sorted, use_container_width=True)
+
 
     # --- 3. 搜尋功能 ---
     st.markdown("---")

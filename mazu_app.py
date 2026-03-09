@@ -14,7 +14,7 @@ APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
-# UI 介面優化 (解決滑動變白與重複問題)
+# UI 介面優化 (解決下拉選單文字變白與滑動問題)
 # ==============================
 @st.cache_data
 def get_base64_image(image_path):
@@ -29,7 +29,7 @@ st.markdown(f"""
 <style>
     /* 1. 全域背景 - 確保底色穩固 */
     .stApp {{
-        background: #2b0000 !important; /* 給予實心底色防止滑動閃爍 */
+        background: #2b0000 !important;
         background-image: linear-gradient(135deg, #2b0000 0%, #4b0000 50%, #1a0000 100%) !important;
         background-attachment: fixed;
     }}
@@ -39,24 +39,40 @@ st.markdown(f"""
         color: #ffffff !important;
     }}
 
-    /* 3. 數據高亮 (金色) */
+    /* 3. 解決下拉選單 (selectbox) 文字看不到的問題 */
+    /* 強制選取框內部的背景為深色，文字為黃金色 */
+    div[data-baseweb="select"] > div {{
+        background-color: #3d0000 !important;
+        color: #FFD700 !important;
+        border: 1px solid rgba(255, 215, 0, 0.5) !important;
+    }}
+    
+    /* 下拉選單展開後的選項清單 */
+    ul[role="listbox"] {{
+        background-color: #3d0000 !important;
+    }}
+    
+    ul[role="listbox"] li {{
+        color: #ffffff !important;
+    }}
+
+    /* 4. 數據高亮 (金色) */
     [data-testid="stMetricValue"] {{
         color: #FFD700 !important;
         font-weight: bold !important;
     }}
 
-    /* 4. 徹底解決滑動變白問題：強制使用實心背景 */
+    /* 5. 徹底解決滑動變白問題：強制使用實心背景 */
     [data-testid="stExpander"] {{
-        background-color: #1a1a1a !important; /* 使用完全不透明的深灰色 */
+        background-color: #1a1a1a !important;
         border: 1px solid rgba(255, 215, 0, 0.3) !important;
         border-radius: 10px !important;
         margin-bottom: 12px !important;
-        will-change: transform; /* 提醒瀏覽器優化渲染 */
+        will-change: transform;
     }}
     
-    /* 摺疊標題背景穩定化 */
     [data-testid="stExpander"] details summary {{
-        background-color: #262626 !important; /* 實心背景，防止滑動時露出白底 */
+        background-color: #262626 !important;
         border-radius: 10px 10px 0 0;
     }}
 
@@ -68,7 +84,7 @@ st.markdown(f"""
         white-space: pre-wrap !important;
     }}
 
-    /* 修正 Dataframe 顯示 */
+    /* 6. 修正 Dataframe 顯示 */
     .stDataFrame div {{
         background-color: transparent !important;
     }}
@@ -122,6 +138,7 @@ all_data, full_df, available_years = load_all_data(FILE_URL)
 
 if all_data:
     # --- 1. 年度統計面板 ---
+    # 這裡就是你提到的下拉選單位置
     selected_year = st.selectbox("選擇年份", available_years)
     year_df = all_data[selected_year]
     
@@ -174,14 +191,9 @@ if all_data:
                 last_node = g_sorted.iloc[-1]
                 line4 = f"{last_node['時間']}  {last_node['地點']}"
 
-        # 組合標籤並去除重複
         summary_list = [line1, line2]
-        if line3: 
-            summary_list.append(line3)
-        
-        # 防止第一筆與最後一筆內容完全相同導致摘要重複
-        if line4 and line4 != line2:
-            summary_list.append(line4)
+        if line3: summary_list.append(line3)
+        if line4 and line4 != line2: summary_list.append(line4)
             
         label_text = "\n".join(summary_list)
         

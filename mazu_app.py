@@ -14,7 +14,7 @@ APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
-# UI 介面優化（強化文字顏色與對齊）
+# UI 介面優化（解決手機看不到字的問題）
 # ==============================
 @st.cache_data
 def get_base64_image(image_path):
@@ -27,36 +27,37 @@ img_base64 = get_base64_image(WATERMARK_IMAGE_PATH)
 
 st.markdown(f"""
 <style>
-    /* 1. 全域背景與基礎文字 */
+    /* 1. 全域背景 */
     .stApp {{
-        background: linear-gradient(135deg, #2b0000 0%, #4b0000 50%, #1a0000 100%);
+        background: linear-gradient(135deg, #2b0000 0%, #4b0000 50%, #1a0000 100%) !important;
+        color: #ffffff !important;
+        -webkit-text-size-adjust: 100%; /* 防止手機自動縮放字體 */
+    }}
+
+    /* 2. 強制所有元件文字為白色 */
+    .stApp p, .stApp span, .stApp label, .stApp div, .stApp h1, .stApp h2, .stApp h3 {{
         color: #ffffff !important;
     }}
 
-    /* 2. 強制所有層級的文字顏色為白色 */
-    .stApp p, .stApp span, .stApp label, .stApp div {{
-        color: #ffffff !important;
-    }}
-
-    /* 3. Metric 數據卡片優化 */
+    /* 3. Metric 數據優化 (金色) */
     [data-testid="stMetricValue"] {{
-        color: #FFD700 !important; /* 金色數據 */
+        color: #FFD700 !important;
         font-weight: bold !important;
     }}
-    [data-testid="stMetricLabel"] {{
-        color: #cccccc !important; /* 淺灰標籤 */
-    }}
 
-    /* 4. Expander 標題對齊與字體修正 */
-    .st-emotion-cache-p4m44u p {{
+    /* 4. Expander 標題修正 (針對手機版白色區塊問題) */
+    /* 設定深色背景與等寬字體，確保 || 對齊且文字清晰 */
+    .st-emotion-cache-p4m44u, .st-emotion-cache-p4m44u p {{
+        background-color: rgba(0, 0, 0, 0.4) !important; /* 加入半透明背景 */
         font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
-        font-size: 15px !important;
-        white-space: pre !important; /* 保留空格以利對齊 */
-        color: #ffffff !important;
+        font-size: 14px !important;
+        white-space: pre !important;
+        border-radius: 5px;
+        padding: 2px 5px;
     }}
 
-    /* 5. 修正 Dataframe 裡面的字體顏色（預設可能會變黑） */
-    .stDataFrame div[data-testid="stTable"] {{
+    /* 5. 修正 Dataframe 顏色 */
+    .stDataFrame div {{
         color: #ffffff !important;
     }}
     
@@ -64,6 +65,13 @@ st.markdown(f"""
     .watermark {{
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
         opacity: 0.12; z-index: 0; pointer-events: none;
+    }}
+
+    /* 7. 手機版調整：縮小字體以防溢出 */
+    @media (max-width: 600px) {{
+        .st-emotion-cache-p4m44u p {{
+            font-size: 12px !important;
+        }}
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -74,7 +82,7 @@ if img_base64:
 st.title(f"{APP_TITLE}")
 
 # ==============================
-# 資料核心邏輯
+# 資料核心邏輯 (與先前相同，保持穩定)
 # ==============================
 @st.cache_data(show_spinner=False)
 def load_all_data(url):
@@ -122,31 +130,27 @@ if all_data:
 
     st.markdown("---")
 
-    # --- 2. 每日摘要 (優化對齊與可讀性) ---
-    with st.expander(f"📅 {selected_year} 每日摘要行程 (點擊展開詳細地點)"):
+    # --- 2. 每日摘要 (手機適配版) ---
+    with st.expander(f"📅 {selected_year} 每日摘要行程 (點擊查看詳情)"):
         grouped = year_df.groupby(["月", "日"], sort=False)
         all_days = list(grouped)
         
         for idx, ((m, d), g) in enumerate(all_days):
             g_sorted = g.sort_values("完整時間")
             
-            # P1: 日期 (5字元)
             p1 = f"{m:02d}/{d:02d}"
             
-            # P2: 起駕 (18字元)
             first = g_sorted.iloc[0]
             start_txt = f"{first['時間']} {first['地點']} 起駕"
-            p2 = f"{start_txt[:18]:<18}"
+            p2 = f"{start_txt[:15]:<15}" # 手機端寬度較窄，略微縮短長度
             
-            # P3: 午休 (20字元)
-            p3 = " " * 20
+            p3 = " " * 15
             if "停駐駕" in g.columns:
                 lunch = g[g["停駐駕"].astype(str).str.contains("午休", na=False)]
                 if not lunch.empty:
                     l_txt = f"{lunch.iloc[0]['時間']} {lunch.iloc[0]['地點']} 午休"
-                    p3 = f"{l_txt[:20]:<20}"
+                    p3 = f"{l_txt[:15]:<15}"
             
-            # P4: 終點
             p4 = ""
             if "停駐駕" in g.columns:
                 for kw in ["回宮", "朝天宮", "駐駕"]:
@@ -160,8 +164,7 @@ if all_data:
                     last = g_sorted.iloc[-1]
                     p4 = f"{last['時間']} {last['地點']}"
 
-            # 組合對齊標籤
-            label = f"{p1}  ||  {p2}  ||  {p3}  ||  {p4}"
+            label = f"{p1} || {p2} || {p3} || {p4}"
             
             with st.expander(label):
                 cols = ['時間', '地點', '去回程']
@@ -171,11 +174,11 @@ if all_data:
     # --- 3. 搜尋 ---
     st.markdown("---")
     st.subheader("🔍 跨年份地點查詢")
-    keyword = st.text_input("搜尋地點", placeholder="輸入關鍵字...")
+    keyword = st.text_input("搜尋地點", placeholder="例如：拱天宮")
     if keyword and not full_df.empty:
         res = full_df[full_df['地點'].astype(str).str.contains(keyword, na=False)].copy()
         if not res.empty:
             res['日期時間'] = res['完整時間'].dt.strftime('%Y-%m-%d %H:%M')
             st.dataframe(res[['年份', '日期時間', '地點', '去回程']].sort_values('日期時間', ascending=False), use_container_width=True)
 else:
-    st.error("初始化失敗，請檢查資料連結。")
+    st.error("初始化失敗，請檢查資料。")

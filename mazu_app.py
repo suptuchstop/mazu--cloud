@@ -41,17 +41,31 @@ st.markdown(f"""
         color: #FFD700 !important;
         border: 1px solid rgba(255, 215, 0, 0.5) !important;
     }}
+    [data-testid="stMetricValue"] {{
+        color: #FFD700 !important;
+        font-weight: bold !important;
+    }}
     [data-testid="stExpander"] {{
         background-color: #1a1a1a !important;
         border: 1px solid rgba(255, 215, 0, 0.3) !important;
         border-radius: 10px !important;
         margin-bottom: 12px !important;
     }}
+    [data-testid="stExpander"] details summary p {{
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+        font-size: 14px !important;
+        line-height: 1.6 !important;
+    }}
 </style>
 """, unsafe_allow_html=True)
 
+if img_base64:
+    st.markdown(f'<img src="data:image/png;base64,{img_base64}" class="watermark" width="700">', unsafe_allow_html=True)
+
+st.title(f"{APP_TITLE}")
+
 # ==============================
-# 資料載入
+# 資料載入與核心邏輯
 # ==============================
 @st.cache_data(show_spinner=False)
 def load_all_data(url):
@@ -82,23 +96,27 @@ all_data, full_df, available_years = load_all_data(FILE_URL)
 if all_data:
     selected_year = st.selectbox("請選擇年份", available_years)
     year_df = all_data[selected_year].copy()
-
-    # 直接使用原始日期進行分組 (不處理併日)
     year_df['raw_date'] = year_df['完整時間'].dt.date
 
-    # 統計
-    t_days = year_df['raw_date'].nunique()
-    c1, c2, c3 = st.columns(3)
-    c1.metric("總天數", f"{t_days} 天")
-    c4, c5, c6 = st.columns(3)
-    c4.metric("總時數", f"{round(year_df['effective_hours'].sum(), 1)} hr")
+    # --- 1. 年度統計面板 (修正補回) ---
+    go_df = year_df[year_df['去回程'] == '去']
+    back_df = year_df[year_df['去回程'] == '回']
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("總天數", f"{year_df['raw_date'].nunique()} 天")
+    col2.metric("去程天數", f"{go_df['raw_date'].nunique()} 天")
+    col3.metric("回程天數", f"{back_df['raw_date'].nunique()} 天")
+
+    col4, col5, col6 = st.columns(3)
+    col4.metric("總時數", f"{round(year_df['effective_hours'].sum(), 1)} hr")
+    col5.metric("去程時數", f"{round(go_df['effective_hours'].sum(), 1)} hr")
+    col6.metric("回程時數", f"{round(back_df['effective_hours'].sum(), 1)} hr")
 
     st.markdown("---")
 
     # --- 2. 每日摘要與詳細行程 ---
     st.subheader(f"📅 {selected_year} 行程摘要")
     
-    # 按照日期分組
     grouped = year_df.groupby("raw_date", sort=False)
 
     for idx, (g_date, g) in enumerate(grouped):
@@ -109,8 +127,8 @@ if all_data:
         
         # Line 2: 起點
         first_node = g_sorted.iloc[0]
-        status = first_node['停駐駕'] if (pd.notna(first_node.get('停駐駕')) and str(first_node['停駐駕']).strip() != "") else "起駕"
-        line2 = f"{first_node['時間']}  {first_node['地點']}  {status}"
+        status_start = first_node['停駐駕'] if (pd.notna(first_node.get('停駐駕')) and str(first_node['停駐駕']).strip() != "") else "起駕"
+        line2 = f"{first_node['時間']}  {first_node['地點']}  {status_start}"
         
         # Line 3: 午休
         line3 = ""
@@ -120,7 +138,7 @@ if all_data:
                 target = l_match.iloc[0]
                 line3 = f"{target['時間']}  {target['地點']}  午休"
         
-        # Line 4: 終點 (過濾單筆重複)
+        # Line 4: 終點
         line4 = ""
         if len(g_sorted) > 1:
             found_end = False
@@ -134,24 +152,23 @@ if all_data:
                     break
             if not found_end:
                 last_node = g_sorted.iloc[-1]
-                line4 = f"{last_node['時間']}  {last_node['地點']}"
+                line4 = f"{last_node['時間']}  {last_node['地點']}  駐駕"
 
-        # 組合摘要文字
+        # 組合摘要文字 (嚴格格式檢查)
         summary_lines = [line1, line2]
         if line3: summary_lines.append(line3)
-        # 最終重複檢查：如果 line4 的核心內容 (時間+地點) 已經在 line2 出現，就不顯示
         if line4:
-            if not (first_node['時間'] in line4 and first_node['地點'] in line4):
+            # 防止單筆行程重複顯示
+            if not (first_node['時間'] == last_node['時間'] and first_node['地點'] == last_node['地點']):
                 summary_lines.append(line4)
             
         label_text = "\n".join(summary_lines)
         
-        # 展開後顯示該日所有行程資料
+        # 展開後顯示該日所有行程資料 (詳細行程)
         with st.expander(label_text):
             cols = ['時間', '地點', '去回程']
             if '停駐駕' in g.columns:
                 cols.append('停駐駕')
-            # 顯示該分組 (g_sorted) 內的所有筆數
             st.dataframe(g_sorted[cols], use_container_width=True)
 
     # --- 3. 搜尋功能 ---

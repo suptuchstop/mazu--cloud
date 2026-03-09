@@ -41,14 +41,12 @@ st.markdown(f"""
     }}
 
     /* 3. 解決下拉選單 (selectbox) 文字看不到的問題 */
-    /* 強制選取框內部的背景為深色，文字為黃金色 */
     div[data-baseweb="select"] > div {{
         background-color: #3d0000 !important;
         color: #FFD700 !important;
         border: 1px solid rgba(255, 215, 0, 0.5) !important;
     }}
     
-    /* 下拉選單展開後的選項清單 */
     ul[role="listbox"] {{
         background-color: #3d0000 !important;
     }}
@@ -63,7 +61,7 @@ st.markdown(f"""
         font-weight: bold !important;
     }}
 
-    /* 5. 徹底解決滑動變白問題：強制使用實心背景 */
+    /* 5. 徹底解決滑動變白問題 */
     [data-testid="stExpander"] {{
         background-color: #1a1a1a !important;
         border: 1px solid rgba(255, 215, 0, 0.3) !important;
@@ -95,7 +93,6 @@ st.markdown(f"""
         opacity: 0.12; z-index: 0; pointer-events: none;
     }}
 
-    /* 手機版字體 */
     @media (max-width: 600px) {{
         [data-testid="stExpander"] details summary p {{
             font-size: 12px !important;
@@ -127,7 +124,6 @@ def load_all_data(url):
             df['完整時間'] = pd.to_datetime(f"{sheet}-"+df['月'].astype(str)+'-'+df['日'].astype(str)+' '+df['時間'].astype(str), format='%Y-%m-%d %H:%M', errors='coerce')
             df = df.dropna(subset=['完整時間']).sort_values('完整時間')
             
-            # 計算有效時數
             df['time_diff_sec'] = df['完整時間'].diff().dt.total_seconds()
             df['effective_hours'] = df['time_diff_sec'].apply(lambda x: x/3600 if 0 < x <= 86400 else 0)
             
@@ -143,7 +139,7 @@ if all_data:
     year_df = all_data[selected_year].copy()
     year_df['raw_date'] = year_df['完整時間'].dt.date
 
-    # --- 1. 年度統計面板 (修正補回) ---
+    # --- 1. 年度統計面板 ---
     go_df = year_df[year_df['去回程'] == '去']
     back_df = year_df[year_df['去回程'] == '回']
 
@@ -170,7 +166,7 @@ if all_data:
         # Line 1: 日期
         line1 = g_date.strftime('%m/%d')
         
-        # Line 2: 起點
+        # Line 2: 起點 (關鍵修正：直接抓該組排序後的第一筆，不帶任何預設排除)
         first_node = g_sorted.iloc[0]
         status_start = first_node['停駐駕'] if (pd.notna(first_node.get('停駐駕')) and str(first_node['停駐駕']).strip() != "") else "起駕"
         line2 = f"{first_node['時間']}  {first_node['地點']}  {status_start}"
@@ -197,19 +193,16 @@ if all_data:
                     break
             if not found_end:
                 last_node = g_sorted.iloc[-1]
-                line4 = f"{last_node['時間']}  {last_node['地點']}  駐駕"
+                # 只有當最後一筆跟第一筆真的不同時，才補上「駐駕」作為終點標記
+                if not (last_node['時間'] == first_node['時間'] and last_node['地點'] == first_node['地點']):
+                    line4 = f"{last_node['時間']}  {last_node['地點']}  駐駕"
 
-        # 組合摘要文字 (嚴格格式檢查)
         summary_lines = [line1, line2]
         if line3: summary_lines.append(line3)
-        if line4:
-            # 防止單筆行程重複顯示
-            if not (first_node['時間'] == last_node['時間'] and first_node['地點'] == last_node['地點']):
-                summary_lines.append(line4)
+        if line4: summary_lines.append(line4)
             
         label_text = "\n".join(summary_lines)
         
-        # 展開後顯示該日所有行程資料 (詳細行程)
         with st.expander(label_text):
             cols = ['時間', '地點', '去回程']
             if '停駐駕' in g.columns:

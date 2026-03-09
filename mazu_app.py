@@ -139,7 +139,7 @@ all_data, full_df, available_years = load_all_data(FILE_URL)
 if all_data:
     # --- 1. 年度統計面板 ---
     # 這裡就是你提到的下拉選單位置
-    selected_year = st.selectbox("選擇年份", available_years)
+    selected_year = st.selectbox("請選擇年份", available_years)
     year_df = all_data[selected_year]
     
     go_df = year_df[year_df['去回程'] == '去']
@@ -158,7 +158,7 @@ if all_data:
     st.markdown("---")
 
     # --- 2. 每日摘要 (修正滑動問題與重複) ---
-    st.subheader(f"📅 {selected_year} 每日摘要與行程")
+    st.subheader(f"📅 {selected_year} 每日行程摘要與詳細行程")
     grouped = year_df.groupby(["月", "日"], sort=False)
     
     for idx, ((m, d), g) in enumerate(grouped):
@@ -205,7 +205,7 @@ if all_data:
     # --- 3. 搜尋 ---
     st.markdown("---")
     st.subheader("🔍 跨年份地點查詢")
-    search_key = st.text_input("搜尋地點或宮廟名稱")
+    search_key = st.text_input("搜尋地點關鍵字")
     if search_key and not full_df.empty:
         res = full_df[full_df['地點'].astype(str).str.contains(search_key, na=False)].copy()
         if not res.empty:

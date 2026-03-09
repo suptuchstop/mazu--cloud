@@ -143,11 +143,26 @@ if all_data:
                 cols = ['時間', '地點', '去回程']
                 if '停駐駕' in g.columns: cols.append('停駐駕')
                 st.dataframe(g_sorted[cols], use_container_width=True)
-
-    # 跨年搜尋部分保持不變...
+# ------------------------------
+    # 2️⃣ 跨年份地點查詢
+    # ------------------------------
     st.subheader("2️⃣ 跨年份地點查詢")
-    keyword = st.text_input("輸入地點關鍵字（例如：福安宮）")
+    keyword = st.text_input("輸入地點關鍵字（例如：福安宮）", key="search_input")
+    
     if keyword and not full_df.empty:
+        # 在預載好的總表中進行關鍵字篩選
         res = full_df[full_df['地點'].astype(str).str.contains(keyword, na=False)].copy()
+        
         if not res.empty:
-            res['日期時間'] = res['
+            # 格式化顯示時間
+            res['日期時間'] = res['完整時間'].dt.strftime('%Y-%m-%d %H:%M')
+            # 整理欄位並依照時間由新到舊排序
+            display_res = res[['年份', '日期時間', '地點', '去回程']].sort_values('日期時間', ascending=False)
+            
+            st.success(f"在歷年紀錄中找到 {len(display_res)} 筆關於「{keyword}」的結果：")
+            st.dataframe(display_res, use_container_width=True)
+        else:
+            st.warning(f"查無關於「{keyword}」的資料。")
+
+else:
+    st.error("系統初始化失敗，請檢查資料來源（Excel 連結或格式）。")

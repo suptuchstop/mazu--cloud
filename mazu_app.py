@@ -50,6 +50,12 @@ st.markdown(f"""
         border: 1px solid rgba(255, 215, 0, 0.3) !important;
         border-radius: 10px !important;
         margin-bottom: 12px !important;
+        will-change: transform;
+    }}
+    [data-testid="stExpander"] details summary p {{
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
+        font-size: 14px !important;
+        white-space: pre-wrap !important;
     }}
     .watermark {{
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -78,9 +84,11 @@ def load_all_data(url):
             df = pd.read_excel(xls, sheet_name=sheet)
             df.columns = df.columns.str.strip()
             df['去回程'] = df['去回程'].astype(str).str.strip().replace({'去程': '去', '回程': '回'})
+            # 建立完整時間
             df['完整時間'] = pd.to_datetime(f"{sheet}-"+df['月'].astype(str)+'-'+df['日'].astype(str)+' '+df['時間'].astype(str), format='%Y-%m-%d %H:%M', errors='coerce')
             df = df.dropna(subset=['完整時間']).sort_values('完整時間')
             
+            # 計算有效時數
             df['time_diff_sec'] = df['完整時間'].diff().dt.total_seconds()
             df['effective_hours'] = df['time_diff_sec'].apply(lambda x: x/3600 if 0 < x <= 86400 else 0)
             
@@ -96,7 +104,7 @@ if all_data:
     year_df = all_data[selected_year].copy()
     year_df['raw_date'] = year_df['完整時間'].dt.date
 
-    # 1. 年度統計面板
+    # --- 1. 年度統計面板 ---
     go_df = year_df[year_df['去回程'] == '去']
     back_df = year_df[year_df['去回程'] == '回']
 
@@ -112,11 +120,12 @@ if all_data:
 
     st.markdown("---")
 
-    # 2. 每日摘要與詳細行程
+    # --- 2. 每日摘要與詳細行程 ---
     st.subheader(f"📅 {selected_year} 行程摘要")
     
-    # 強制獲取全年度絕對第一筆資料 (例如：2022/05/20 02:15 登轎)
-    absolute_first_node = year_df.iloc[0]
+    # 【關鍵修正】搜尋整年度最重要的一筆起始點 (登轎)
+    start_candidates = year_df[year_df['停駐駕'].astype(str).str.contains("登轎|起駕", na=False)]
+    absolute_start_node = start_candidates.iloc[0] if not start_candidates.empty else year_df.iloc[0]
 
     grouped = year_df.groupby("raw_date", sort=False)
 
@@ -126,9 +135,10 @@ if all_data:
         # Line 1: 日期
         line1 = g_date.strftime('%m/%d')
         
-        # Line 2: 起點修正 (如果是全年度的第一天，強制使用全年度第一筆資料)
+        # Line 2: 起點修正
         if idx == 0:
-            first_node = absolute_first_node
+            # 第一天強制使用我們搜尋到的「登轎」或「起駕」點
+            first_node = absolute_start_node
         else:
             first_node = g_sorted.iloc[0]
             
@@ -157,11 +167,10 @@ if all_data:
                     break
             if not found_end:
                 last_node = g_sorted.iloc[-1]
-                # 再次檢查最後一筆是否就是第一筆，避免單筆重複
+                # 只有當最後一筆跟第一筆真的不同時才顯示
                 if not (last_node['時間'] == first_node['時間'] and last_node['地點'] == first_node['地點']):
                     line4 = f"{last_node['時間']}  {last_node['地點']}  駐駕"
 
-        # 組合摘要文字
         summary_lines = [line1, line2]
         if line3: summary_lines.append(line3)
         if line4: summary_lines.append(line4)
@@ -174,7 +183,7 @@ if all_data:
                 cols.append('停駐駕')
             st.dataframe(g_sorted[cols], use_container_width=True)
 
-    # 3. 搜尋功能
+    # --- 3. 搜尋功能 ---
     st.markdown("---")
     st.subheader("🔍 地點查詢")
     search_key = st.text_input("搜尋關鍵字")

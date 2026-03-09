@@ -287,9 +287,9 @@ if xls:
         # 每日摘要 + 詳細行程
         with st.expander(f"點擊展開 / 收合 {selected_year} 每日行程摘要", expanded=False):
 
-        grouped = year_df.groupby(['月', '日'])
+         grouped = year_df.groupby(['月', '日'])
 
-        for (m, d), group in grouped:
+         for (m, d), group in grouped:
 
             group = group.sort_values('完整時間')
 

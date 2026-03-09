@@ -15,7 +15,7 @@ APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
-# UI 介面優化
+# UI 介面優化 (解決下拉選單文字變白與滑動問題)
 # ==============================
 @st.cache_data
 def get_base64_image(image_path):
@@ -28,23 +28,42 @@ img_base64 = get_base64_image(WATERMARK_IMAGE_PATH)
 
 st.markdown(f"""
 <style>
+    /* 1. 全域背景 - 確保底色穩固 */
     .stApp {{
         background: #2b0000 !important;
         background-image: linear-gradient(135deg, #2b0000 0%, #4b0000 50%, #1a0000 100%) !important;
         background-attachment: fixed;
     }}
+
+    /* 2. 文字顏色強制白色 */
     .stApp p, .stApp span, .stApp label, .stApp div, .stApp h1, .stApp h2, .stApp h3 {{
         color: #ffffff !important;
     }}
+
+    /* 3. 解決下拉選單 (selectbox) 文字看不到的問題 */
+    /* 強制選取框內部的背景為深色，文字為黃金色 */
     div[data-baseweb="select"] > div {{
         background-color: #3d0000 !important;
         color: #FFD700 !important;
         border: 1px solid rgba(255, 215, 0, 0.5) !important;
     }}
+    
+    /* 下拉選單展開後的選項清單 */
+    ul[role="listbox"] {{
+        background-color: #3d0000 !important;
+    }}
+    
+    ul[role="listbox"] li {{
+        color: #ffffff !important;
+    }}
+
+    /* 4. 數據高亮 (金色) */
     [data-testid="stMetricValue"] {{
         color: #FFD700 !important;
         font-weight: bold !important;
     }}
+
+    /* 5. 徹底解決滑動變白問題：強制使用實心背景 */
     [data-testid="stExpander"] {{
         background-color: #1a1a1a !important;
         border: 1px solid rgba(255, 215, 0, 0.3) !important;
@@ -52,14 +71,35 @@ st.markdown(f"""
         margin-bottom: 12px !important;
         will-change: transform;
     }}
+    
+    [data-testid="stExpander"] details summary {{
+        background-color: #262626 !important;
+        border-radius: 10px 10px 0 0;
+    }}
+
     [data-testid="stExpander"] details summary p {{
         font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
         font-size: 14px !important;
+        line-height: 1.6 !important;
+        color: #ffffff !important;
         white-space: pre-wrap !important;
     }}
+
+    /* 6. 修正 Dataframe 顯示 */
+    .stDataFrame div {{
+        background-color: transparent !important;
+    }}
+    
     .watermark {{
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
         opacity: 0.12; z-index: 0; pointer-events: none;
+    }}
+
+    /* 手機版字體 */
+    @media (max-width: 600px) {{
+        [data-testid="stExpander"] details summary p {{
+            font-size: 12px !important;
+        }}
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -84,7 +124,6 @@ def load_all_data(url):
             df = pd.read_excel(xls, sheet_name=sheet)
             df.columns = df.columns.str.strip()
             df['去回程'] = df['去回程'].astype(str).str.strip().replace({'去程': '去', '回程': '回'})
-            # 建立完整時間
             df['完整時間'] = pd.to_datetime(f"{sheet}-"+df['月'].astype(str)+'-'+df['日'].astype(str)+' '+df['時間'].astype(str), format='%Y-%m-%d %H:%M', errors='coerce')
             df = df.dropna(subset=['完整時間']).sort_values('完整時間')
             
@@ -104,7 +143,7 @@ if all_data:
     year_df = all_data[selected_year].copy()
     year_df['raw_date'] = year_df['完整時間'].dt.date
 
-    # --- 1. 年度統計面板 ---
+    # --- 1. 年度統計面板 (修正補回) ---
     go_df = year_df[year_df['去回程'] == '去']
     back_df = year_df[year_df['去回程'] == '回']
 
@@ -123,10 +162,6 @@ if all_data:
     # --- 2. 每日摘要與詳細行程 ---
     st.subheader(f"📅 {selected_year} 行程摘要")
     
-    # 【關鍵修正】搜尋整年度最重要的一筆起始點 (登轎)
-    start_candidates = year_df[year_df['停駐駕'].astype(str).str.contains("登轎|起駕", na=False)]
-    absolute_start_node = start_candidates.iloc[0] if not start_candidates.empty else year_df.iloc[0]
-
     grouped = year_df.groupby("raw_date", sort=False)
 
     for idx, (g_date, g) in enumerate(grouped):
@@ -135,13 +170,8 @@ if all_data:
         # Line 1: 日期
         line1 = g_date.strftime('%m/%d')
         
-        # Line 2: 起點修正
-        if idx == 0:
-            # 第一天強制使用我們搜尋到的「登轎」或「起駕」點
-            first_node = absolute_start_node
-        else:
-            first_node = g_sorted.iloc[0]
-            
+        # Line 2: 起點
+        first_node = g_sorted.iloc[0]
         status_start = first_node['停駐駕'] if (pd.notna(first_node.get('停駐駕')) and str(first_node['停駐駕']).strip() != "") else "起駕"
         line2 = f"{first_node['時間']}  {first_node['地點']}  {status_start}"
         
@@ -167,16 +197,19 @@ if all_data:
                     break
             if not found_end:
                 last_node = g_sorted.iloc[-1]
-                # 只有當最後一筆跟第一筆真的不同時才顯示
-                if not (last_node['時間'] == first_node['時間'] and last_node['地點'] == first_node['地點']):
-                    line4 = f"{last_node['時間']}  {last_node['地點']}  駐駕"
+                line4 = f"{last_node['時間']}  {last_node['地點']}  駐駕"
 
+        # 組合摘要文字 (嚴格格式檢查)
         summary_lines = [line1, line2]
         if line3: summary_lines.append(line3)
-        if line4: summary_lines.append(line4)
+        if line4:
+            # 防止單筆行程重複顯示
+            if not (first_node['時間'] == last_node['時間'] and first_node['地點'] == last_node['地點']):
+                summary_lines.append(line4)
             
         label_text = "\n".join(summary_lines)
         
+        # 展開後顯示該日所有行程資料 (詳細行程)
         with st.expander(label_text):
             cols = ['時間', '地點', '去回程']
             if '停駐駕' in g.columns:

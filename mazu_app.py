@@ -14,7 +14,7 @@ APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
-# UI 介面優化 (徹底解決手機端顯示問題)
+# UI 介面優化 (解決手機版白底與對齊問題)
 # ==============================
 @st.cache_data
 def get_base64_image(image_path):
@@ -27,45 +27,40 @@ img_base64 = get_base64_image(WATERMARK_IMAGE_PATH)
 
 st.markdown(f"""
 <style>
-    /* 1. 全域背景與文字基礎 */
+    /* 1. 全域背景 */
     .stApp {{
         background: linear-gradient(135deg, #2b0000 0%, #4b0000 50%, #1a0000 100%) !important;
-        color: #ffffff !important;
     }}
 
-    /* 2. 強制文字顏色（包含選擇框與標籤） */
+    /* 2. 文字顏色強制白色 */
     .stApp p, .stApp span, .stApp label, .stApp div, .stApp h1, .stApp h2, .stApp h3 {{
         color: #ffffff !important;
     }}
 
-    /* 3. 重點指標高亮 (金色) */
+    /* 3. 數據高亮 (金色) */
     [data-testid="stMetricValue"] {{
         color: #FFD700 !important;
         font-weight: bold !important;
     }}
 
-    /* 4. 解決手機版展開後變白色的問題 (CSS 強制覆蓋) */
-    /* 針對 st.expander 的所有狀態強制設定背景色 */
+    /* 4. Expander 標題修正：解決手機版白底問題並支援多行 */
     [data-testid="stExpander"] {{
         background-color: rgba(30, 30, 30, 0.7) !important;
         border: 1px solid rgba(255, 215, 0, 0.2) !important;
         border-radius: 8px !important;
+        margin-bottom: 8px !important;
     }}
     
-    [data-testid="stExpander"] details summary {{
-        background-color: rgba(20, 0, 0, 0.5) !important;
+    /* 展開標題樣式 */
+    [data-testid="stExpander"] details summary p {{
+        font-family: '微軟正黑體', sans-serif !important;
+        font-size: 15px !important;
+        line-height: 1.6 !important; /* 增加行高讓四行更清楚 */
         color: #ffffff !important;
+        white-space: pre-wrap !important; /* 允許換行 */
     }}
 
-    [data-testid="stExpander"] p {{
-        font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
-        font-size: 14px !important;
-        line-height: 1.5 !important;
-        color: #ffffff !important;
-        white-space: pre-wrap !important; /* 手機版自動換行防止截斷 */
-    }}
-
-    /* 5. 修正 Dataframe 防止白色遮擋 */
+    /* 修正 Dataframe 顏色 */
     .stDataFrame div {{
         background-color: transparent !important;
     }}
@@ -73,13 +68,6 @@ st.markdown(f"""
     .watermark {{
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
         opacity: 0.12; z-index: 0; pointer-events: none;
-    }}
-
-    /* 手機版字體微調 */
-    @media (max-width: 600px) {{
-        [data-testid="stExpander"] p {{
-            font-size: 12px !important;
-        }}
     }}
 </style>
 """, unsafe_allow_html=True)
@@ -90,7 +78,7 @@ if img_base64:
 st.title(f"{APP_TITLE}")
 
 # ==============================
-# 資料核心邏輯 (優化搜尋條件)
+# 資料核心邏輯
 # ==============================
 @st.cache_data(show_spinner=False)
 def load_all_data(url):
@@ -116,7 +104,7 @@ def load_all_data(url):
 all_data, full_df, available_years = load_all_data(FILE_URL)
 
 if all_data:
-    # 統計面板
+    # 1. 年度統計
     selected_year = st.selectbox("選擇年份", available_years)
     year_df = all_data[selected_year]
     
@@ -135,50 +123,56 @@ if all_data:
 
     st.markdown("---")
 
-    # --- 每日摘要核心邏輯 ---
-    with st.expander(f"📅 {selected_year} 每日摘要與行程記錄"):
+    # 2. 每日摘要 (改為四行格式)
+    with st.expander(f"📅 {selected_year} 每日摘要與行程 (點擊展開詳細地點)"):
         grouped = year_df.groupby(["月", "日"], sort=False)
         for idx, ((m, d), g) in enumerate(grouped):
             g_sorted = g.sort_values("完整時間")
             
-            # 1. 起駕
-            first = g_sorted.iloc[0]
-            p2 = f"{first['時間']} {first['地點']} 起駕"
+            # 第一行：日期
+            line1 = f"{m:02d}/{d:02d}"
             
-            # 2. 午休 (優化關鍵字判斷)
-            p3 = " " * 15
+            # 第二行：起駕 (當天第一筆)
+            first = g_sorted.iloc[0]
+            line2 = f"{first['時間']}  {first['地點']}  起駕"
+            
+            # 第三行：午休
+            line3 = ""
             if '停駐駕' in g.columns:
-                # 模糊搜尋包含「午休」字樣的列
                 l_match = g[g['停駐駕'].astype(str).str.contains("午休", na=False)]
                 if not l_match.empty:
                     target = l_match.iloc[0]
-                    p3 = f"{target['時間']} {target['地點']} 午休"
+                    line3 = f"{target['時間']}  {target['地點']}  午休"
             
-            # 3. 終點 (駐駕/朝天宮/回宮)
-            p4 = ""
+            # 第四行：終點 (駐駕/朝天宮/回宮)
+            line4 = ""
             if '停駐駕' in g.columns:
-                found_p4 = False
+                found_end = False
                 for kw in ["回宮", "朝天宮", "駐駕"]:
                     target_match = g[g['停駐駕'].astype(str).str.contains(kw, na=False)]
                     if not target_match.empty:
                         t_node = target_match.iloc[-1]
                         status = f"抵達{kw}" if kw == "朝天宮" else kw
-                        p4 = f"{t_node['時間']} {t_node['地點']} {status}"
-                        found_p4 = True
+                        line4 = f"{t_node['時間']}  {t_node['地點']}  {status}"
+                        found_end = True
                         break
-                if not found_p4:
+                if not found_end:
                     last_node = g_sorted.iloc[-1]
-                    p4 = f"{last_node['時間']} {last_node['地點']}"
+                    line4 = f"{last_node['時間']}  {last_node['地點']}"
 
-            # 組合標籤
-            label = f"{m:02d}/{d:02d} || {p2} || {p3} || {p4}"
+            # 組合四行摘要，如果午休為空則直接跳過該行
+            summary_list = [line1, line2]
+            if line3: summary_list.append(line3)
+            summary_list.append(line4)
+            
+            label = "\n".join(summary_list)
             
             with st.expander(label):
                 cols = ['時間', '地點', '去回程']
                 if '停駐駕' in g.columns: cols.append('停駐駕')
                 st.dataframe(g_sorted[cols], use_container_width=True)
 
-    # 搜尋部分保持不變
+    # 3. 搜尋
     st.markdown("---")
     st.subheader("🔍 跨年份地點查詢")
     keyword = st.text_input("搜尋關鍵字")

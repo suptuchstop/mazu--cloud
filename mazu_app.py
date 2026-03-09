@@ -81,22 +81,20 @@ def load_all_data(url):
         for sheet in xls.sheet_names:
             df = pd.read_excel(xls, sheet_name=sheet)
             df.columns = df.columns.str.strip()
-            # 統一「去回程」字詞
             df['去回程'] = df['去回程'].astype(str).str.strip().replace({'去程': '去', '回程': '回'})
             
-            # 建立正確的時間對象以便排序與計算
+            # 建立時間對象
             df['完整時間'] = pd.to_datetime(sheet + '-' + df['月'].astype(str) + '-' + df['日'].astype(str) + ' ' + df['時間'].astype(str), errors='coerce')
             df = df.dropna(subset=['完整時間']).sort_values('完整時間')
             
-            # 計算時數 (用於統計面板)
+            # 計算時數
             df['time_diff_sec'] = df['完整時間'].diff().dt.total_seconds()
             df['effective_hours'] = df['time_diff_sec'].apply(lambda x: x/3600 if 0 < x <= 86400 else 0)
             
             all_data_dict[sheet] = df
             full_list.append(df[['完整時間', '地點', '去回程']].assign(年份=sheet))
         return all_data_dict, pd.concat(full_list), sorted(xls.sheet_names, reverse=True)
-    except Exception as e:
-        return None, None, []
+    except: return None, None, []
 
 all_data, full_df, available_years = load_all_data(FILE_URL)
 
@@ -119,36 +117,35 @@ if all_data:
 
     st.markdown("---")
 
-    # --- 2. 每日行程摘要與詳細清單 (絕對不濾資料版) ---
+    # --- 2. 每日行程摘要與詳細清單 ---
     st.subheader(f"📅 {selected_year} 行程摘要")
     
     grouped = year_df.groupby("raw_date", sort=False)
 
     for idx, (g_date, g) in enumerate(grouped):
-        # 排序：確保時間由早到晚
+        # 絕對先按時間排序
         g_sorted = g.sort_values("完整時間", ascending=True)
         
-        # --- 摘要邏輯 (Expander 標題列) ---
+        # --- 摘要邏輯 (標題顯示) ---
         line1 = g_date.strftime('%m/%d')
         
-        # Line 2: 找第一個 "起駕" 或 "登轎"
-        start_candidates = g_sorted[g_sorted['停駐駕'].astype(str).str.contains("起駕|登轎", na=False)]
-        if not start_candidates.empty:
-            s_node = start_candidates.iloc[0]
+        # 第2行: 起駕/登轎
+        start_nodes = g_sorted[g_sorted['停駐駕'].astype(str).str.contains("起駕|登轎", na=False)]
+        if not start_nodes.empty:
+            s_node = start_nodes.iloc[0]
             line2 = f"{s_node['時間']}  {s_node['地點']}  {s_node['停駐駕']}"
         else:
-            # 若沒寫關鍵字，則顯示當天第一筆
             s_node = g_sorted.iloc[0]
             line2 = f"{s_node['時間']}  {s_node['地點']}  起駕"
         
-        # Line 3: 找第一個 "午休"
+        # 第3行: 午休
         line3 = ""
         l_match = g_sorted[g_sorted['停駐駕'].astype(str).str.contains("午休", na=False)]
         if not l_match.empty:
             l_node = l_match.iloc[0]
             line3 = f"{l_node['時間']}  {l_node['地點']}  午休"
         
-        # Line 4: 終點 (回宮 > 朝天宮 > 駐駕)
+        # 第4行: 終點
         line4 = ""
         end_found = False
         for kw in ["回宮", "朝天宮", "駐駕"]:
@@ -160,16 +157,14 @@ if all_data:
                 end_found = True
                 break
         
-        # 組合標題
         summary_lines = [line1, line2]
         if line3: summary_lines.append(line3)
         if line4: summary_lines.append(line4)
         label_text = "\n".join(summary_lines)
         
-        # --- 詳細清單 (點開 Expander 後) ---
+        # --- 詳細清單 (關鍵修正：絕對不濾資料) ---
         with st.expander(label_text):
-            # 核心修正：不篩選任何筆跡，直接顯示 g_sorted 完整內容
-            # 這樣 5/20 的大甲、清水、伸港等 6 筆記錄都會一列一列跑出來
+            # 直接顯示當天排序後的所有原始筆跡
             display_cols = ['時間', '地點', '去回程', '停駐駕']
             actual_cols = [c for c in display_cols if c in g_sorted.columns]
             st.dataframe(g_sorted[actual_cols], use_container_width=True, hide_index=True)
@@ -177,11 +172,11 @@ if all_data:
     # --- 3. 搜尋功能 ---
     st.markdown("---")
     st.subheader("🔍 地點查詢")
-    search_key = st.text_input("輸入關鍵字搜尋地點 (例如: 北港)")
+    search_key = st.text_input("輸入關鍵字搜尋地點")
     if search_key and not full_df.empty:
         res = full_df[full_df['地點'].astype(str).str.contains(search_key, na=False)].copy()
         if not res.empty:
             res['日期時間'] = res['完整時間'].dt.strftime('%Y-%m-%d %H:%M')
             st.dataframe(res[['年份', '日期時間', '地點', '去回程']].sort_values('日期時間', ascending=False), use_container_width=True)
 else:
-    st.error("資料載入失敗，請確認網路連線或檔案格式。")
+    st.error("資料載入失敗")

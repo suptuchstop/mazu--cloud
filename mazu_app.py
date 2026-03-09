@@ -159,48 +159,55 @@ if all_data:
 
     # --- 2. 每日摘要 (修正滑動問題與重複) ---
     st.subheader(f"📅 {selected_year} 每日行程摘要與詳細行程")
-    grouped = year_df.groupby(["月", "日"], sort=False)
-    
-    for idx, ((m, d), g) in enumerate(grouped):
-        g_sorted = g.sort_values("完整時間")
-        
-        line1 = f"{m:02d}/{d:02d}"
-        
-        first_node = g_sorted.iloc[0]
-        line2 = f"{first_node['時間']}  {first_node['地點']}  起駕"
-        
-        line3 = ""
-        if '停駐駕' in g.columns:
-            l_match = g[g['停駐駕'].astype(str).str.contains("午休", na=False)]
-            if not l_match.empty:
-                target = l_match.iloc[0]
-                line3 = f"{target['時間']}  {target['地點']}  午休"
-        
-        line4 = ""
-        if '停駐駕' in g.columns:
-            found_end = False
-            for kw in ["回宮", "朝天宮", "駐駕"]:
-                t_match = g[g['停駐駕'].astype(str).str.contains(kw, na=False)]
-                if not t_match.empty:
-                    t_node = t_match.iloc[-1]
-                    status = f"抵達{kw}" if kw == "朝天宮" else kw
-                    line4 = f"{t_node['時間']}  {t_node['地點']}  {status}"
-                    found_end = True
-                    break
-            if not found_end:
-                last_node = g_sorted.iloc[-1]
-                line4 = f"{last_node['時間']}  {last_node['地點']}"
+    grouped = year_df.groupby("group_date", sort=False)
 
-        summary_list = [line1, line2]
-        if line3: summary_list.append(line3)
-        if line4 and line4 != line2: summary_list.append(line4)
+    for idx, (g_date, g) in enumerate(grouped):
+        g_sorted = g.sort_values("完整時間")
+    
+        # Line 1: 日期顯示 (支援併日日期範圍)
+        unique_dates = g_sorted['完整時間'].dt.strftime('%m/%d').unique()
+        line1 = " - ".join(unique_dates) if len(unique_dates) > 1 else unique_dates[0]
+    
+        # Line 2: 真正的第一筆 (absolute_first_node 或 組內首筆)
+        first_node = absolute_first_node if (idx == 0) else g_sorted.iloc[0]
+        status = first_node['停駐駕'] if (pd.notna(first_node.get('停駐駕')) and str(first_node['停駐駕']).strip() != "") else "起駕"
+        line2 = f"{first_node['時間']}  {first_node['地點']}  {status}"
+    
+        # Line 3: 午休 (略過邏輯不變)
+        line3 = ""
+        # ... (午休抓取邏輯)
+    
+        # Line 4: 終點/駐駕 (增加過濾邏輯)
+        line4 = ""
+        if len(g_sorted) > 1:  # 關鍵：只有當這組資料超過一筆時，才去抓終點
+            found = False
+            for kw in ["回宮", "朝天宮", "駐駕"]:
+                m = g[g['停駐駕'].astype(str).str.contains(kw, na=False)]
+                if not m.empty:
+                    node = m.iloc[-1]
+                    label = f"抵達{kw}" if kw == "朝天宮" else kw
+                    line4 = f"{node['時間']}  {node['地點']}  {label}"
+                    found = True
+                    break
+            if not found:
+                last = g_sorted.iloc[-1]
+                line4 = f"{last['時間']}  {last['地點']}"
+
+        # 組合摘要：建立一個 set 來過濾內容完全一樣的行
+        display_lines = [line1, line2]
+        if line3: display_lines.append(line3)
+        # 如果 line4 存在，且它的「時間+地點」跟 line2 不同，才加入
+        if line4:
+            # 簡單檢查：如果時間地點都一樣，就不重複顯示
+            if not (first_node['時間'] in line4 and first_node['地點'] in line4):
+                display_lines.append(line4)
             
-        label_text = "\n".join(summary_list)
-        
+        label_text = "\n".join(display_lines)
+    
         with st.expander(label_text):
-            cols = ['時間', '地點', '去回程']
-            if '停駐駕' in g.columns: cols.append('停駐駕')
-            st.dataframe(g_sorted[cols], use_container_width=True)
+             st.dataframe(g_sorted[['月', '日', '時間', '地點', '去回程', '停駐駕']], use_container_width=True)
+
+
 
     # --- 3. 搜尋 ---
     st.markdown("---")

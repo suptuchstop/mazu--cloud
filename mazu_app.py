@@ -14,7 +14,7 @@ APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
-# UI 介面優化（解決手機看不到字的問題）
+# UI 介面優化（徹底解決手機白色遮擋與字體截斷）
 # ==============================
 @st.cache_data
 def get_base64_image(image_path):
@@ -27,14 +27,13 @@ img_base64 = get_base64_image(WATERMARK_IMAGE_PATH)
 
 st.markdown(f"""
 <style>
-    /* 1. 全域背景 */
+    /* 1. 全域背景與基礎文字 */
     .stApp {{
         background: linear-gradient(135deg, #2b0000 0%, #4b0000 50%, #1a0000 100%) !important;
         color: #ffffff !important;
-        -webkit-text-size-adjust: 100%; /* 防止手機自動縮放字體 */
     }}
 
-    /* 2. 強制所有元件文字為白色 */
+    /* 2. 強制所有元件文字顏色 */
     .stApp p, .stApp span, .stApp label, .stApp div, .stApp h1, .stApp h2, .stApp h3 {{
         color: #ffffff !important;
     }}
@@ -45,20 +44,25 @@ st.markdown(f"""
         font-weight: bold !important;
     }}
 
-    /* 4. Expander 標題修正 (針對手機版白色區塊問題) */
-    /* 設定深色背景與等寬字體，確保 || 對齊且文字清晰 */
-    .st-emotion-cache-p4m44u, .st-emotion-cache-p4m44u p {{
-        background-color: rgba(0, 0, 0, 0.4) !important; /* 加入半透明背景 */
+    /* 4. Expander 標題修正：解決手機版白色遮擋問題 */
+    /* 這裡使用透明度較低的深色背景，確保白色字體在任何模式下都清晰 */
+    .st-emotion-cache-p4m44u {{
+        background-color: rgba(30, 30, 30, 0.8) !important; 
+        border: 1px solid rgba(255, 215, 0, 0.3) !important;
+        border-radius: 8px !important;
+        margin-bottom: 5px !important;
+    }}
+    
+    .st-emotion-cache-p4m44u p {{
         font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
-        font-size: 14px !important;
+        font-size: 13px !important;
         white-space: pre !important;
-        border-radius: 5px;
-        padding: 2px 5px;
+        color: #ffffff !important;
     }}
 
-    /* 5. 修正 Dataframe 顏色 */
+    /* 5. 修正 Dataframe 背景顏色防止過白 */
     .stDataFrame div {{
-        color: #ffffff !important;
+        background-color: rgba(0, 0, 0, 0.2) !important;
     }}
     
     /* 6. 浮水印 */
@@ -67,10 +71,11 @@ st.markdown(f"""
         opacity: 0.12; z-index: 0; pointer-events: none;
     }}
 
-    /* 7. 手機版調整：縮小字體以防溢出 */
+    /* 7. 針對手機小螢幕隱藏部分空格或調整比例 */
     @media (max-width: 600px) {{
         .st-emotion-cache-p4m44u p {{
-            font-size: 12px !important;
+            font-size: 11px !important;
+            letter-spacing: -0.5px;
         }}
     }}
 </style>
@@ -82,7 +87,7 @@ if img_base64:
 st.title(f"{APP_TITLE}")
 
 # ==============================
-# 資料核心邏輯 (與先前相同，保持穩定)
+# 資料核心邏輯
 # ==============================
 @st.cache_data(show_spinner=False)
 def load_all_data(url):
@@ -130,7 +135,7 @@ if all_data:
 
     st.markdown("---")
 
-    # --- 2. 每日摘要 (手機適配版) ---
+    # --- 2. 每日摘要 (修正判斷邏輯與對齊) ---
     with st.expander(f"📅 {selected_year} 每日摘要行程 (點擊查看詳情)"):
         grouped = year_df.groupby(["月", "日"], sort=False)
         all_days = list(grouped)
@@ -138,32 +143,43 @@ if all_data:
         for idx, ((m, d), g) in enumerate(all_days):
             g_sorted = g.sort_values("完整時間")
             
+            # P1: 日期 (5字元)
             p1 = f"{m:02d}/{d:02d}"
             
+            # P2: 起駕
             first = g_sorted.iloc[0]
             start_txt = f"{first['時間']} {first['地點']} 起駕"
-            p2 = f"{start_txt[:15]:<15}" # 手機端寬度較窄，略微縮短長度
+            p2 = f"{start_txt[:12]:<12}" # 縮短字數適配手機
             
-            p3 = " " * 15
+            # P3: 午休 (不論是否最後一天都必須獨立判斷)
+            p3 = " " * 12
             if "停駐駕" in g.columns:
                 lunch = g[g["停駐駕"].astype(str).str.contains("午休", na=False)]
                 if not lunch.empty:
-                    l_txt = f"{lunch.iloc[0]['時間']} {lunch.iloc[0]['地點']} 午休"
-                    p3 = f"{l_txt[:15]:<15}"
+                    l_node = lunch.iloc[0]
+                    l_txt = f"{l_node['時間']} {l_node['地點']} 午休"
+                    p3 = f"{l_txt[:12]:<12}"
             
+            # P4: 終點 (駐駕/朝天宮/回宮)
             p4 = ""
             if "停駐駕" in g.columns:
+                # 依優先序尋找
+                found = False
                 for kw in ["回宮", "朝天宮", "駐駕"]:
                     match = g[g["停駐駕"].astype(str).str.contains(kw, na=False)]
                     if not match.empty:
-                        target = match.iloc[0]
+                        target = match.iloc[-1] # 找最後一筆符合的
                         status = f"抵達{kw}" if kw == "朝天宮" else kw
                         p4 = f"{target['時間']} {target['地點']} {status}"
+                        found = True
                         break
-                if not p4 and idx == len(all_days) - 1:
-                    last = g_sorted.iloc[-1]
-                    p4 = f"{last['時間']} {last['地點']}"
+                
+                # 如果這天剛好沒有寫關鍵字，則抓該天最後一筆
+                if not found:
+                    last_node = g_sorted.iloc[-1]
+                    p4 = f"{last_node['時間']} {last_node['地點']}"
 
+            # 組合對齊標籤 (用較短的間隔防止手機截斷)
             label = f"{p1} || {p2} || {p3} || {p4}"
             
             with st.expander(label):
@@ -181,4 +197,4 @@ if all_data:
             res['日期時間'] = res['完整時間'].dt.strftime('%Y-%m-%d %H:%M')
             st.dataframe(res[['年份', '日期時間', '地點', '去回程']].sort_values('日期時間', ascending=False), use_container_width=True)
 else:
-    st.error("初始化失敗，請檢查資料。")
+    st.error("初始化失敗")

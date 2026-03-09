@@ -73,7 +73,7 @@ if img_base64:
 st.title(f"{APP_TITLE}")
 
 # ==============================
-# 資料載入
+# 資料載入與時數計算
 # ==============================
 @st.cache_data(show_spinner=False)
 def load_all_data(url):
@@ -87,9 +87,12 @@ def load_all_data(url):
             df = pd.read_excel(xls, sheet_name=sheet)
             df.columns = df.columns.str.strip()
             df['去回程'] = df['去回程'].astype(str).str.strip().replace({'去程': '去', '回程': '回'})
+            
+            # 建立完整時間並強制排序
             df['完整時間'] = pd.to_datetime(sheet + '-' + df['月'].astype(str) + '-' + df['日'].astype(str) + ' ' + df['時間'].astype(str), errors='coerce')
             df = df.dropna(subset=['完整時間']).sort_values('完整時間')
             
+            # 計算有效時數
             df['time_diff_sec'] = df['完整時間'].diff().dt.total_seconds()
             df['effective_hours'] = df['time_diff_sec'].apply(lambda x: x/3600 if 0 < x <= 86400 else 0)
             
@@ -105,7 +108,7 @@ if all_data:
     year_df = all_data[selected_year].copy()
     year_df['raw_date'] = year_df['完整時間'].dt.date
 
-    # --- 1. 年度統計 ---
+    # --- 1. 年度統計面板 ---
     go_df = year_df[year_df['去回程'] == '去']
     back_df = year_df[year_df['去回程'] == '回']
     col1, col2, col3 = st.columns(3)
@@ -119,51 +122,63 @@ if all_data:
 
     st.markdown("---")
 
-    # --- 2. 每日摘要與詳細行程 ---
+    # --- 2. 每日摘要與詳細行程 (關鍵邏輯強化) ---
     st.subheader(f"📅 {selected_year} 行程摘要")
     
     grouped = year_df.groupby("raw_date", sort=False)
 
     for idx, (g_date, g) in enumerate(grouped):
-        g_sorted = g.sort_values("完整時間")
+        # 【步驟一】嚴格按時間排序
+        g_sorted = g.sort_values("完整時間", ascending=True)
         
         # Line 1: 日期
         line1 = g_date.strftime('%m/%d')
         
-        # Line 2: 當日 "起駕" 或 "登轎"
-        start_match = g_sorted[g_sorted['停駐駕'].astype(str).str.contains("起駕|登轎", na=False)]
-        if not start_match.empty:
-            start_node = start_match.iloc[0]
-            line2 = f"{start_node['時間']}  {start_node['地點']}  {start_node['停駐駕']}"
+        # Line 2: 當日 "起駕" 或 "登轎" (搜尋當天所有紀錄，只要包含關鍵字就抓)
+        # 修正：避免抓到當天第一筆非起駕的資料 (例如報備)
+        start_candidates = g_sorted[g_sorted['停駐駕'].astype(str).str.contains("起駕|登轎", na=False)]
+        if not start_candidates.empty:
+            s_node = start_candidates.iloc[0]
+            line2 = f"{s_node['時間']}  {s_node['地點']}  {s_node['停駐駕']}"
         else:
-            first_node = g_sorted.iloc[0]
-            line2 = f"{first_node['時間']}  {first_node['地點']}  起駕"
+            # 如果整天都沒寫起駕，才顯示當天第一筆
+            s_node = g_sorted.iloc[0]
+            line2 = f"{s_node['時間']}  {s_node['地點']}  起駕"
         
         # Line 3: 當日 "午休"
         line3 = ""
         l_match = g_sorted[g_sorted['停駐駕'].astype(str).str.contains("午休", na=False)]
         if not l_match.empty:
-            target = l_match.iloc[0]
-            line3 = f"{target['時間']}  {target['地點']}  午休"
+            l_node = l_match.iloc[0]
+            line3 = f"{l_node['時間']}  {l_node['地點']}  午休"
         
-        # Line 4: 終點
+        # Line 4: 當日 "駐駕" OR "朝天宮" OR "回宮"
         line4 = ""
+        end_found = False
+        # 按照優先權從後往前搜尋 (因為一天可能有多個狀態，要抓最後一個)
         for kw in ["回宮", "朝天宮", "駐駕"]:
-            t_match = g_sorted[g_sorted['停駐駕'].astype(str).str.contains(kw, na=False)]
-            if not t_match.empty:
-                t_node = t_match.iloc[-1]
+            e_match = g_sorted[g_sorted['停駐駕'].astype(str).str.contains(kw, na=False)]
+            if not e_match.empty:
+                e_node = e_match.iloc[-1]
                 label = f"抵達{kw}" if kw == "朝天宮" else kw
-                line4 = f"{t_node['時間']}  {t_node['地點']}  {label}"
+                line4 = f"{e_node['時間']}  {e_node['地點']}  {label}"
+                end_found = True
                 break
         
+        # 如果當天完全沒寫駐駕相關，且不只一筆，補最後一筆
+        if not end_found and len(g_sorted) > 1:
+            e_node = g_sorted.iloc[-1]
+            if not (e_node['時間'] == s_node['時間'] and e_node['地點'] == s_node['地點']):
+                line4 = f"{e_node['時間']}  {e_node['地點']}  駐駕"
+
         summary_lines = [line1, line2]
         if line3: summary_lines.append(line3)
         if line4: summary_lines.append(line4)
             
         label_text = "\n".join(summary_lines)
         
+        # 詳細行程：100% 顯示該日所有筆數，一筆都不刪
         with st.expander(label_text):
-            # 詳細行程：這部分不做任何篩選，直接顯示當日的所有筆數
             cols = ['時間', '地點', '去回程']
             if '停駐駕' in g_sorted.columns:
                 cols.append('停駐駕')

@@ -9,10 +9,6 @@ import logging
 # 設定日誌記錄，以便在後台查看錯誤細節
 logging.basicConfig(level=logging.INFO)
 
-# ==============================
-# 初始化與設定 (Initialization)
-# ==============================
-
 st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
 FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
@@ -20,7 +16,7 @@ APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
-# 自定義介面樣式 (Custom Styling)
+# 背景圖片與介面樣式
 # ==============================
 
 @st.cache_data
@@ -77,7 +73,7 @@ if img_base64:
 st.title(APP_TITLE)
 
 # ==============================
-# 資料載入與整理 (Data Loading & Preprocessing)
+# 讀取Excel (所有Sheet)
 # ==============================
 
 @st.cache_data
@@ -145,10 +141,7 @@ def load_data():
     # 丟棄「時間」欄位無法辨識的記錄，確保資料完整性
     df = df.dropna(subset=["完整時間"])
 
-    # 建立摘要日 (依據「完整時間」的日期)
-    df["摘要日"] = df["完整時間"].dt.date
-
-    # --- 關鍵核心邏輯 (文化日定義) ---
+    # --- 關鍵核心邏輯修正 (文化日與深夜起駕) ---
     # 白沙屯拱天宮進香文化：深夜起駕算入新一天行程。
     # 判斷標準：若時間在 23:30 到 00:00 之間。
     df["行軍時間"] = df["完整時間"]
@@ -157,6 +150,9 @@ def load_data():
     df.loc[mask, "行軍時間"] = df.loc[mask, "行軍時間"] + timedelta(days=1)
     # 提取「行軍日」日期
     df["行軍日"] = df["行軍時間"].dt.date
+
+    # 建立摘要日 (依據「完整時間」的日期)
+    df["摘要日"] = df["完整時間"].dt.date
 
     # 確保「年」欄位存在並排序
     df["年"] = df["年份"]
@@ -173,7 +169,7 @@ df = load_data()
 if df.empty:
     st.stop() # 如果資料為空，停止執行後續介面
 
-# 提取不重複年份並從大到小排序 (Desc order)
+# 提取不重複年份並從大到小排序 ( Desc order )
 years = sorted(df["年"].unique(), reverse=True)
 year = st.selectbox("選擇年份", years, index=0)
 
@@ -232,24 +228,28 @@ st.divider()
 
 st.subheader("每日行程摘要")
 
+# --- 關鍵核心邏輯修正 (兵馬先動) ---
 # 依「行軍日」（文化日）進行分組，並自動排序 ( chronological order )
 grouped = year_df.groupby("行軍日", sort=True)
 
 for g_date, g_df in grouped:
-    # 格式化日期為月/日
-    date_str = pd.to_datetime(g_date).strftime("%m/%d")
+    
+    # 取得當天第一筆記錄
+    start_row = g_df.sort_values("完整時間").iloc[0]
+    
+    # **NEW: 摘要標題回溯邏輯**
+    # 如果起駕時間是深夜 (23:30-00:00)，這筆記錄在Excel中日曆天是前一天。
+    # 展開器的標題日期應回溯顯示「日曆上的實際日期」 (g_df.iloc[0]["摘要日"])。
+    display_date = g_df.iloc[0]["摘要日"]
+    date_str = pd.to_datetime(display_date).strftime("%m/%d")
     
     # 組合摘要文字列
     summary_lines = []
     
-    # --- 關鍵核心邏輯 (功能需求 2 ) ---
-    # 尋找特定的停駐駕事件：午休、駐駕、抵達北港、回宮。
-    
-    # 取得起駕 (當天第一筆)
-    start_row = g_df.sort_values("完整時間").iloc[0]
+    # 起駕事件 ( st.expander 標題顯示 )
     summary_lines.append(f"起駕: {start_row['完整時間'].strftime('%H:%M')} {start_row['地點']}")
 
-    # 功能需求 2 的 G欄判斷
+    # 尋找特定的停駐駕事件：午休、駐駕、抵達北港、回宮。
     lunch_rest = g_df[g_df["停駐駕"] == "午休"]
     if not lunch_rest.empty:
         summary_lines.append(f"午休: {lunch_rest.iloc[0]['完整時間'].strftime('%H:%M')} {lunch_rest.iloc[0]['地點']}")
@@ -269,10 +269,10 @@ for g_date, g_df in grouped:
     # 將所有找到的事件組合成一個分號分隔的字串
     daily_summary_text = " ; ".join(summary_lines)
 
-    # 建立展開器 (st.expander)，標題包含日期和摘要文字
+    # 建立展開器 (st.expander)，標題包含回溯後的日期和摘要文字
     with st.expander(f"{date_str} {daily_summary_text}"):
         
-        # --- 修正後的關鍵核心區塊 (功能需求 3 ) ---
+        # --- 關鍵核心邏輯修正 (兵馬先動) ---
         # 顯示展開後的詳細內容表格。
         # 這裡必須使用「同一個行軍日分組內」的資料 (g_df)，
         # 才能確保展開內容與標題上顯示的摘要文字是完全一致的。

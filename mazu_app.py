@@ -3,11 +3,16 @@ import pandas as pd
 import requests
 from io import BytesIO
 import base64
-from datetime import time
+from datetime import timedelta
+import logging
+
+# 設定日誌記錄，以便在後台查看錯誤細節
+logging.basicConfig(level=logging.INFO)
 
 # ==============================
-# 應用程式配置
+# 初始化與設定 (Initialization)
 # ==============================
+
 st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
 FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
@@ -15,215 +20,271 @@ APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
-# UI 介面優化 (解決下拉選單文字變白與滑動問題)
+# 自定義介面樣式 (Custom Styling)
 # ==============================
+
 @st.cache_data
-def get_base64_image(image_path):
+def get_base64_image(path):
     try:
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
-    except: return ""
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode()
+    except Exception as e:
+        logging.warning(f"無法載入浮水印圖片: {e}")
+        return ""
 
 img_base64 = get_base64_image(WATERMARK_IMAGE_PATH)
 
-st.markdown(f"""
+st.markdown("""
 <style>
-    /* 1. 全域背景 - 確保底色穩固 */
-    .stApp {{
-        background: #2b0000 !important;
-        background-image: linear-gradient(135deg, #2b0000 0%, #4b0000 50%, #1a0000 100%) !important;
-        background-attachment: fixed;
-    }}
+.stApp {
+    background: #2b0000;
+    background-image: linear-gradient(135deg, #2b0000 0%, #4b0000 50%, #1a0000 100%);
+}
 
-    /* 2. 文字顏色強制白色 */
-    .stApp p, .stApp span, .stApp label, .stApp div, .stApp h1, .stApp h2, .stApp h3 {{
-        color: #ffffff !important;
-    }}
+.stApp p, .stApp span, .stApp label, .stApp div, .stApp h1, .stApp h2, .stApp h3 {
+    color: #ffffff !important;
+}
 
-    /* 3. 解決下拉選單 (selectbox) 文字看不到的問題 */
-    /* 強制選取框內部的背景為深色，文字為黃金色 */
-    div[data-baseweb="select"] > div {{
-        background-color: #3d0000 !important;
-        color: #FFD700 !important;
-        border: 1px solid rgba(255, 215, 0, 0.5) !important;
-    }}
-    
-    /* 下拉選單展開後的選項清單 */
-    ul[role="listbox"] {{
-        background-color: #3d0000 !important;
-    }}
-    
-    ul[role="listbox"] li {{
-        color: #ffffff !important;
-    }}
+[data-testid="stMetricValue"] {
+    color: #FFD700 !important;
+    font-weight: bold;
+}
 
-    /* 4. 數據高亮 (金色) */
-    [data-testid="stMetricValue"] {{
-        color: #FFD700 !important;
-        font-weight: bold !important;
-    }}
+[data-testid="stExpander"] {
+    background: #1a1a1a;
+    border: 1px solid rgba(255, 215, 0, 0.3);
+    border-radius: 10px;
+    margin-bottom: 12px;
+}
 
-    /* 5. 徹底解決滑動變白問題：強制使用實心背景 */
-    [data-testid="stExpander"] {{
-        background-color: #1a1a1a !important;
-        border: 1px solid rgba(255, 215, 0, 0.3) !important;
-        border-radius: 10px !important;
-        margin-bottom: 12px !important;
-        will-change: transform;
-    }}
-    
-    [data-testid="stExpander"] details summary {{
-        background-color: #262626 !important;
-        border-radius: 10px 10px 0 0;
-    }}
-
-    [data-testid="stExpander"] details summary p {{
-        font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
-        font-size: 14px !important;
-        line-height: 1.6 !important;
-        color: #ffffff !important;
-        white-space: pre-wrap !important;
-    }}
-
-    /* 6. 修正 Dataframe 顯示 */
-    .stDataFrame div {{
-        background-color: transparent !important;
-    }}
-    
-    .watermark {{
-        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        opacity: 0.12; z-index: 0; pointer-events: none;
-    }}
-
-    /* 手機版字體 */
-    @media (max-width: 600px) {{
-        [data-testid="stExpander"] details summary p {{
-            font-size: 12px !important;
-        }}
-    }}
+.watermark {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0.12;
+    z-index: 0;
+}
 </style>
 """, unsafe_allow_html=True)
 
 if img_base64:
-    st.markdown(f'<img src="data:image/png;base64,{img_base64}" class="watermark" width="700">', unsafe_allow_html=True)
+    st.markdown(
+        f'<img src="data:image/png;base64,{img_base64}" class="watermark" width="700">',
+        unsafe_allow_html=True
+    )
 
-st.title(f"{APP_TITLE}")
+st.title(APP_TITLE)
 
 # ==============================
-# 資料載入與核心邏輯
+# 資料載入與整理 (Data Loading & Preprocessing)
 # ==============================
-@st.cache_data(show_spinner=False)
-def load_all_data(url):
+
+@st.cache_data
+def load_data():
     try:
-        response = requests.get(url)
-        response.raise_for_status()
-        xls = pd.ExcelFile(BytesIO(response.content), engine="openpyxl")
-        all_data_dict, full_list = {}, []
+        logging.info(f"正在從 {FILE_URL} 載入資料...")
+        r = requests.get(FILE_URL)
+        r.raise_for_status() # 檢查網路請求是否成功
         
-        for sheet in xls.sheet_names:
-            df = pd.read_excel(xls, sheet_name=sheet)
-            df.columns = df.columns.str.strip()
-            df['去回程'] = df['去回程'].astype(str).str.strip().replace({'去程': '去', '回程': '回'})
-            df['完整時間'] = pd.to_datetime(f"{sheet}-"+df['月'].astype(str)+'-'+df['日'].astype(str)+' '+df['時間'].astype(str), format='%Y-%m-%d %H:%M', errors='coerce')
-            df = df.dropna(subset=['完整時間']).sort_values('完整時間')
-            
-            # 計算有效時數
-            df['time_diff_sec'] = df['完整時間'].diff().dt.total_seconds()
-            df['effective_hours'] = df['time_diff_sec'].apply(lambda x: x/3600 if 0 < x <= 86400 else 0)
-            
-            all_data_dict[sheet] = df
-            full_list.append(df[['完整時間', '地點', '去回程']].assign(年份=sheet))
-        return all_data_dict, pd.concat(full_list), sorted(xls.sheet_names, reverse=True)
-    except: return None, None, []
+        # 讀取 Excel 檔案的所有 Sheet
+        sheets = pd.read_excel(BytesIO(r.content), sheet_name=None)
+        logging.info(f"成功載入資料，共 {len(sheets)} 個年份。")
+    except requests.exceptions.RequestException as e:
+        logging.error(f"網路請求失敗: {e}")
+        st.error(f"❌ 無法連接到資料來源。請檢查網路連線或稍後再試。 (錯誤細節: {e})")
+        return pd.DataFrame() # 傳回空的 DataFrame 防止後續程式碼崩潰
+    except Exception as e:
+        logging.error(f"資料讀取失敗: {e}")
+        st.error(f"❌ 資料格式錯誤或無法讀取。 (錯誤細節: {e})")
+        return pd.DataFrame()
 
-all_data, full_df, available_years = load_all_data(FILE_URL)
+    df_list = []
 
-if all_data:
-    selected_year = st.selectbox("請選擇年份", available_years)
-    year_df = all_data[selected_year].copy()
-    year_df['raw_date'] = year_df['完整時間'].dt.date
+    for name, data in sheets.items():
+        try:
+            # 將 Sheet 名稱（年份）轉為整數
+            year_val = int(name)
+            # 清理資料：丟棄全為空的行
+            data = data.dropna(how="all")
+            # 建立年份欄位
+            data["年份"] = year_val
+            df_list.append(data)
+        except ValueError:
+            logging.warning(f"跳過無效的 Sheet 名稱（非年份）: {name}")
+            continue
 
-    # --- 1. 年度統計面板 (修正補回) ---
-    go_df = year_df[year_df['去回程'] == '去']
-    back_df = year_df[year_df['去回程'] == '回']
+    if not df_list:
+        st.warning("⚠️ 資料集中未找到有效年份的資料。")
+        return pd.DataFrame()
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("總天數", f"{year_df['raw_date'].nunique()} 天")
-    col2.metric("去程天數", f"{go_df['raw_date'].nunique()} 天")
-    col3.metric("回程天數", f"{back_df['raw_date'].nunique()} 天")
+    # 合併所有年份資料
+    df = pd.concat(df_list, ignore_index=True)
 
-    col4, col5, col6 = st.columns(3)
-    col4.metric("總時數", f"{round(year_df['effective_hours'].sum(), 1)} hr")
-    col5.metric("去程時數", f"{round(go_df['effective_hours'].sum(), 1)} hr")
-    col6.metric("回程時數", f"{round(back_df['effective_hours'].sum(), 1)} hr")
+    # 清理欄位名稱空白
+    df.columns = df.columns.str.strip()
 
-    st.markdown("---")
+    # 強制將「月」、「日」轉為整數，確保 zfill 正確
+    df["月"] = df["月"].fillna(0).astype(int)
+    df["日"] = df["日"].fillna(0).astype(int)
 
-    # --- 2. 每日摘要與詳細行程 ---
-    st.subheader(f"📅 {selected_year} 行程摘要")
+    # 清理並確保「時間」欄位為字串
+    df["時間"] = df["時間"].astype(str).str.strip()
+
+    # 建立 datetime 字串 (YYYY-MM-DD HH:MM)
+    datetime_str = (
+        df["年份"].astype(str) + "-" +
+        df["月"].astype(str).str.zfill(2) + "-" +
+        df["日"].astype(str).str.zfill(2) + " " +
+        df["時間"]
+    )
+
+    # 轉換為完整時間，強制拋棄錯誤格式 (errors="coerce")
+    df["完整時間"] = pd.to_datetime(datetime_str, format="%Y-%m-%d %H:%M", errors="coerce")
     
-    grouped = year_df.groupby("raw_date", sort=False)
+    # 丟棄「時間」欄位無法辨識的記錄，確保資料完整性
+    df = df.dropna(subset=["完整時間"])
 
-    for idx, (g_date, g) in enumerate(grouped):
-        g_sorted = g.sort_values("完整時間")
-        
-        # Line 1: 日期
-        line1 = g_date.strftime('%m/%d')
-        
-        # Line 2: 起點
-        first_node = g_sorted.iloc[0]
-        status_start = first_node['停駐駕'] if (pd.notna(first_node.get('停駐駕')) and str(first_node['停駐駕']).strip() != "") else "起駕"
-        line2 = f"{first_node['時間']}  {first_node['地點']}  {status_start}"
-        
-        # Line 3: 午休
-        line3 = ""
-        if '停駐駕' in g.columns:
-            l_match = g[g['停駐駕'].astype(str).str.contains("午休", na=False)]
-            if not l_match.empty:
-                target = l_match.iloc[0]
-                line3 = f"{target['時間']}  {target['地點']}  午休"
-        
-        # Line 4: 終點
-        line4 = ""
-        if len(g_sorted) > 1:
-            found_end = False
-            for kw in ["回宮", "朝天宮", "駐駕"]:
-                t_match = g[g['停駐駕'].astype(str).str.contains(kw, na=False)]
-                if not t_match.empty:
-                    t_node = t_match.iloc[-1]
-                    label = f"抵達{kw}" if kw == "朝天宮" else kw
-                    line4 = f"{t_node['時間']}  {t_node['地點']}  {label}"
-                    found_end = True
-                    break
-            if not found_end:
-                last_node = g_sorted.iloc[-1]
-                line4 = f"{last_node['時間']}  {last_node['地點']}  駐駕"
+    # 建立摘要日 (依據「完整時間」的日期)
+    df["摘要日"] = df["完整時間"].dt.date
 
-        # 組合摘要文字 (嚴格格式檢查)
-        summary_lines = [line1, line2]
-        if line3: summary_lines.append(line3)
-        if line4:
-            # 防止單筆行程重複顯示
-            if not (first_node['時間'] == last_node['時間'] and first_node['地點'] == last_node['地點']):
-                summary_lines.append(line4)
-            
-        label_text = "\n".join(summary_lines)
-        
-        # 展開後顯示該日所有行程資料 (詳細行程)
-        with st.expander(label_text):
-            cols = ['時間', '地點', '去回程']
-            if '停駐駕' in g.columns:
-                cols.append('停駐駕')
-            st.dataframe(g_sorted[cols], use_container_width=True)
+    # --- 關鍵核心邏輯 (文化日定義) ---
+    # 白沙屯拱天宮進香文化：深夜起駕算入新一天行程。
+    # 判斷標準：若時間在 23:30 到 00:00 之間。
+    df["行軍時間"] = df["完整時間"]
+    mask = (df["完整時間"].dt.hour == 23) & (df["完整時間"].dt.minute >= 30)
+    # 將行軍時間增加一天
+    df.loc[mask, "行軍時間"] = df.loc[mask, "行軍時間"] + timedelta(days=1)
+    # 提取「行軍日」日期
+    df["行軍日"] = df["行軍時間"].dt.date
 
-    # --- 3. 搜尋功能 ---
-    st.markdown("---")
-    st.subheader("🔍 地點查詢")
-    search_key = st.text_input("搜尋關鍵字")
-    if search_key and not full_df.empty:
-        res = full_df[full_df['地點'].astype(str).str.contains(search_key, na=False)].copy()
-        if not res.empty:
-            res['日期時間'] = res['完整時間'].dt.strftime('%Y-%m-%d %H:%M')
-            st.dataframe(res[['年份', '日期時間', '地點', '去回程']].sort_values('日期時間', ascending=False), use_container_width=True)
+    # 確保「年」欄位存在並排序
+    df["年"] = df["年份"]
+    df = df.sort_values("完整時間")
+
+    return df
+
+df = load_data()
+
+# ==============================
+# 年份選擇與地點搜尋 (移到上方)
+# ==============================
+
+if df.empty:
+    st.stop() # 如果資料為空，停止執行後續介面
+
+# 提取不重複年份並從大到小排序 (Desc order)
+years = sorted(df["年"].unique(), reverse=True)
+year = st.selectbox("選擇年份", years, index=0)
+
+# 地點搜尋文字框 ( st.text_input )
+keyword = st.text_input("地點關鍵字搜尋")
+
+# 執行篩選
+year_df = df[df["年"] == year].copy()
+if keyword:
+    year_df = year_df[year_df["地點"].str.contains(keyword, na=False)]
+
+# ==============================
+# 年度統計指標
+# ==============================
+
+st.header(f"{year} 白沙屯媽祖進香資料總覽")
+
+# 計算統計指標。注意：統計天數應基於文化日「行軍日」
+total_days = year_df["行軍日"].nunique()
+go_days = year_df[year_df["去回程"] == "去程"]["行軍日"].nunique()
+back_days = year_df[year_df["去回程"] == "回程"]["行軍日"].nunique()
+
+start_time = year_df.iloc[0]["完整時間"]
+end_time = year_df.iloc[-1]["完整時間"]
+# 總時數 (最後記錄 - 第一記錄)
+total_hours = round((end_time - start_time).total_seconds() / 3600, 1)
+
+go_df = year_df[year_df["去回程"] == "去程"]
+back_df = year_df[year_df["去回程"] == "回程"]
+
+# 分別計算去程與回程時數 (假設資料是連續記錄)
+if not go_df.empty:
+    go_hours = round((go_df.iloc[-1]["完整時間"] - go_df.iloc[0]["完整時間"]).total_seconds() / 3600, 1)
 else:
-    st.error("無法載入資料")
+    go_hours = 0.0
+
+if not back_df.empty:
+    back_hours = round((back_df.iloc[-1]["完整時間"] - back_df.iloc[0]["完整時間"]).total_seconds() / 3600, 1)
+else:
+    back_hours = 0.0
+
+# 顯示統計指標列
+c1, c2, c3, c4, c5, c6 = st.columns(6)
+c1.metric("總天數", total_days)
+c2.metric("去程天數", go_days)
+c3.metric("回程天數", back_days)
+c4.metric("總時數", total_hours)
+c5.metric("去程時數", go_hours)
+c6.metric("回程時數", back_hours)
+
+st.divider()
+
+# ==============================
+# 每日行程摘要與詳細內容
+# ==============================
+
+st.subheader("每日行程摘要")
+
+# 依「行軍日」（文化日）進行分組，並自動排序 ( chronological order )
+grouped = year_df.groupby("行軍日", sort=True)
+
+for g_date, g_df in grouped:
+    # 格式化日期為月/日
+    date_str = pd.to_datetime(g_date).strftime("%m/%d")
+    
+    # 組合摘要文字列
+    summary_lines = []
+    
+    # --- 關鍵核心邏輯 (功能需求 2 ) ---
+    # 尋找特定的停駐駕事件：午休、駐駕、抵達北港、回宮。
+    
+    # 取得起駕 (當天第一筆)
+    start_row = g_df.sort_values("完整時間").iloc[0]
+    summary_lines.append(f"起駕: {start_row['完整時間'].strftime('%H:%M')} {start_row['地點']}")
+
+    # 功能需求 2 的 G欄判斷
+    lunch_rest = g_df[g_df["停駐駕"] == "午休"]
+    if not lunch_rest.empty:
+        summary_lines.append(f"午休: {lunch_rest.iloc[0]['完整時間'].strftime('%H:%M')} {lunch_rest.iloc[0]['地點']}")
+
+    night_rest = g_df[g_df["停駐駕"] == "駐駕"]
+    if not night_rest.empty:
+        summary_lines.append(f"駐駕: {night_rest.iloc[0]['完整時間'].strftime('%H:%M')} {night_rest.iloc[0]['地點']}")
+
+    chaotian_arrival = g_df[g_df["停駐駕"] == "朝天宮"]
+    if not chaotian_arrival.empty:
+        summary_lines.append(f"抵達北港: {chaotian_arrival.iloc[0]['完整時間'].strftime('%H:%M')}")
+
+    home_return = g_df[g_df["停駐駕"] == "回宮"]
+    if not home_return.empty:
+        summary_lines.append(f"回宮: {home_return.iloc[0]['完整時間'].strftime('%H:%M')}")
+
+    # 將所有找到的事件組合成一個分號分隔的字串
+    daily_summary_text = " ; ".join(summary_lines)
+
+    # 建立展開器 (st.expander)，標題包含日期和摘要文字
+    with st.expander(f"{date_str} {daily_summary_text}"):
+        
+        # --- 修正後的關鍵核心區塊 (功能需求 3 ) ---
+        # 顯示展開後的詳細內容表格。
+        # 這裡必須使用「同一個行軍日分組內」的資料 (g_df)，
+        # 才能確保展開內容與標題上顯示的摘要文字是完全一致的。
+        
+        # 建立一個副本進行顯示
+        display_df = g_df[["完整時間", "地點", "去回程", "停駐駕"]].copy()
+        # 格式化顯示時間
+        display_df["時間"] = display_df["完整時間"].dt.strftime("%H:%M")
+        # 重新排列欄位順序，讓時間排在最前面
+        display_df = display_df[["時間", "地點", "去回程", "停駐駕"]]
+        # 依時間升序排序
+        display_df = display_df.sort_values("時間")
+
+        # 顯示詳細表格
+        st.dataframe(display_df, use_container_width=True, hide_index=True)

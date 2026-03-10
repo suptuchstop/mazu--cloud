@@ -3,10 +3,12 @@ import pandas as pd
 import requests
 from io import BytesIO
 import base64
+from datetime import timedelta
 
 # ==============================
 # 應用程式配置
 # ==============================
+
 st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
 FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
@@ -16,6 +18,7 @@ WATERMARK_IMAGE_PATH = "mazu_logo.png"
 # ==============================
 # UI 介面優化 (完全不動)
 # ==============================
+
 @st.cache_data
 def get_base64_image(image_path):
     try:
@@ -100,11 +103,6 @@ if img_base64:
     )
 
 st.title(APP_TITLE)
-import streamlit as st
-import pandas as pd
-from datetime import timedelta
-
-st.set_page_config(layout="wide")
 
 # ==============================
 # 讀取資料
@@ -113,36 +111,42 @@ st.set_page_config(layout="wide")
 @st.cache_data
 def load_data():
 
-    df = pd.read_excel("BaishatunMAZU_Data.xlsx")
+    response = requests.get(FILE_URL)
+
+    df = pd.read_excel(BytesIO(response.content))
 
     df.columns = df.columns.str.strip()
 
+    df["年份"] = df["年份"].astype(int)
+    df["月"] = df["月"].astype(int)
+    df["日"] = df["日"].astype(int)
+
     # 建立完整時間
-    df['完整時間'] = pd.to_datetime(
-        df['日期'].astype(str) + " " + df['時間'].astype(str)
+    df["完整時間"] = pd.to_datetime(
+        df["年份"].astype(str) + "-" +
+        df["月"].astype(str) + "-" +
+        df["日"].astype(str) + " " +
+        df["時間"].astype(str)
     )
 
-    # ==============================
-    # 媽祖行軍邏輯
-    # ==============================
+    # 摘要日期
+    df["摘要日"] = df["完整時間"].dt.date
 
-    # 摘要用日期（保持原始）
-    df['摘要日'] = df['完整時間'].dt.date
-
-    # 行軍時間（23:30跨夜）
-    df['行軍時間'] = df['完整時間']
+    # 行軍時間
+    df["行軍時間"] = df["完整時間"]
 
     mask = (
-        (df['完整時間'].dt.hour == 23) &
-        (df['完整時間'].dt.minute >= 30)
+        (df["完整時間"].dt.hour == 23) &
+        (df["完整時間"].dt.minute >= 30)
     )
 
-    df.loc[mask, '行軍時間'] = df.loc[mask, '行軍時間'] + timedelta(days=1)
+    df.loc[mask, "行軍時間"] = df.loc[mask, "行軍時間"] + timedelta(days=1)
 
-    df['行軍日'] = df['行軍時間'].dt.date
+    df["行軍日"] = df["行軍時間"].dt.date
 
-    # 年度
-    df['年'] = df['完整時間'].dt.year
+    df["年"] = df["年份"]
+
+    df = df.sort_values("完整時間")
 
     return df
 
@@ -170,8 +174,6 @@ total_days = year_df['行軍日'].nunique()
 go_days = year_df[year_df['去回程']=="去程"]['行軍日'].nunique()
 
 back_days = year_df[year_df['去回程']=="回程"]['行軍日'].nunique()
-
-# 時數
 
 start_time = year_df.iloc[0]['完整時間']
 end_time = year_df.iloc[-1]['完整時間']
@@ -215,14 +217,12 @@ for g_date, g_df in grouped:
 
     line = []
 
-    # 起駕（當天最早）
     start_row = g_df.sort_values("完整時間").iloc[0]
 
     line.append(
         f"起駕:{start_row['完整時間'].strftime('%H:%M')} {start_row['地點']}"
     )
 
-    # 午休
     rest = g_df[g_df['停駐駕']=="午休"]
 
     if len(rest)>0:
@@ -233,7 +233,6 @@ for g_date, g_df in grouped:
             f"午休:{r['完整時間'].strftime('%H:%M')} {r['地點']}"
         )
 
-    # 駐駕
     night = g_df[g_df['停駐駕']=="駐駕"]
 
     if len(night)>0:
@@ -244,7 +243,6 @@ for g_date, g_df in grouped:
             f"駐駕:{n['完整時間'].strftime('%H:%M')} {n['地點']}"
         )
 
-    # 朝天宮
     chaotian = g_df[g_df['停駐駕']=="朝天宮"]
 
     if len(chaotian)>0:
@@ -255,7 +253,6 @@ for g_date, g_df in grouped:
             f"抵達北港:{n['完整時間'].strftime('%H:%M')}"
         )
 
-    # 回宮
     home = g_df[g_df['停駐駕']=="回宮"]
 
     if len(home)>0:
@@ -270,7 +267,6 @@ for g_date, g_df in grouped:
 
     with st.expander(f"{date_str}  {summary}"):
 
-        # 詳細行程（用行軍日）
         day_rows = year_df[year_df['行軍日']==g_df.iloc[0]['行軍日']].copy()
 
         display_df = day_rows[

@@ -1,5 +1,107 @@
 import streamlit as st
 import pandas as pd
+import requests
+from io import BytesIO
+import base64
+
+# ==============================
+# 應用程式配置
+# ==============================
+st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
+
+FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
+APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
+WATERMARK_IMAGE_PATH = "mazu_logo.png"
+
+# ==============================
+# UI 介面優化 (完全不動)
+# ==============================
+@st.cache_data
+def get_base64_image(image_path):
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except:
+        return ""
+
+img_base64 = get_base64_image(WATERMARK_IMAGE_PATH)
+
+st.markdown(f"""
+<style>
+.stApp {{
+background:#2b0000 !important;
+background-image:linear-gradient(135deg,#2b0000 0%,#4b0000 50%,#1a0000 100%) !important;
+background-attachment:fixed;
+}}
+
+.stApp p,.stApp span,.stApp label,.stApp div,.stApp h1,.stApp h2,.stApp h3 {{
+color:#ffffff !important;
+}}
+
+div[data-baseweb="select"] > div {{
+background-color:#3d0000 !important;
+color:#FFD700 !important;
+border:1px solid rgba(255,215,0,0.5) !important;
+}}
+
+ul[role="listbox"] {{
+background-color:#3d0000 !important;
+}}
+
+ul[role="listbox"] li {{
+color:#ffffff !important;
+}}
+
+[data-testid="stMetricValue"] {{
+color:#FFD700 !important;
+font-weight:bold !important;
+}}
+
+[data-testid="stExpander"] {{
+background-color:#1a1a1a !important;
+border:1px solid rgba(255,215,0,0.3) !important;
+border-radius:10px !important;
+margin-bottom:12px !important;
+}}
+
+[data-testid="stExpander"] details summary {{
+background-color:#262626 !important;
+border-radius:10px 10px 0 0;
+}}
+
+[data-testid="stExpander"] details summary p {{
+font-family:'Consolas','Monaco','Courier New',monospace !important;
+font-size:14px !important;
+line-height:1.6 !important;
+color:#ffffff !important;
+white-space:pre-wrap !important;
+}}
+
+.stDataFrame div {{
+background-color:transparent !important;
+}}
+
+.watermark {{
+position:fixed;
+top:50%;
+left:50%;
+transform:translate(-50%,-50%);
+opacity:0.12;
+z-index:0;
+pointer-events:none;
+}}
+</style>
+""", unsafe_allow_html=True)
+
+if img_base64:
+    st.markdown(
+        f'<img src="data:image/png;base64,{img_base64}" class="watermark" width="700">',
+        unsafe_allow_html=True
+    )
+
+st.title(APP_TITLE)
+import streamlit as st
+import pandas as pd
 from datetime import timedelta
 
 st.set_page_config(layout="wide")
@@ -182,3 +284,5 @@ for g_date, g_df in grouped:
         ]
 
         st.dataframe(display_df,use_container_width=True)
+else:
+    st.error("無法載入資料")

@@ -306,7 +306,7 @@ for g_date, g_df in grouped:
         st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 # 地點搜尋文字框 ( st.text_input )
-keyword = st.text_input("跨年度地點關鍵字搜尋,例如"白沙屯拱天宮"")
+keyword = st.text_input("跨年度地點關鍵字搜尋,例:白沙屯拱天宮")
 
 # 執行篩選
 year_df = df[df["年"] == year].copy()

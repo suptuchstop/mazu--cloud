@@ -280,5 +280,3 @@ for g_date, g_df in grouped:
         ]
 
         st.dataframe(display_df,use_container_width=True)
-else:
-    st.error("無法載入資料")

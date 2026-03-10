@@ -2,228 +2,134 @@ import streamlit as st
 import pandas as pd
 import requests
 from io import BytesIO
-import base64
-from datetime import time
 
-# ==============================
-# 應用程式配置
-# ==============================
 st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
-FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
-APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
-WATERMARK_IMAGE_PATH = "mazu_logo.png"
+st.title("🔥白沙屯媽進香資料記錄🔥                            βŁãÇķ™ 製")
+
+file_url = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
 
 # ==============================
-# UI 介面優化 (解決下拉選單文字變白與滑動問題)
+# 讀取 Excel
 # ==============================
-@st.cache_data
-def get_base64_image(image_path):
-    try:
-        with open(image_path, "rb") as img_file:
-            return base64.b64encode(img_file.read()).decode()
-    except: return ""
 
-img_base64 = get_base64_image(WATERMARK_IMAGE_PATH)
+response = requests.get(file_url)
+response.raise_for_status()
 
-st.markdown(f"""
-<style>
-    /* 1. 全域背景 - 確保底色穩固 */
-    .stApp {{
-        background: #2b0000 !important;
-        background-image: linear-gradient(135deg, #2b0000 0%, #4b0000 50%, #1a0000 100%) !important;
-        background-attachment: fixed;
-    }}
+excel_data = BytesIO(response.content)
+xls = pd.ExcelFile(excel_data, engine="openpyxl")
 
-    /* 2. 文字顏色強制白色 */
-    .stApp p, .stApp span, .stApp label, .stApp div, .stApp h1, .stApp h2, .stApp h3 {{
-        color: #ffffff !important;
-    }}
+all_data = {}
+summary = []
 
-    /* 3. 解決下拉選單 (selectbox) 文字看不到的問題 */
-    /* 強制選取框內部的背景為深色，文字為黃金色 */
-    div[data-baseweb="select"] > div {{
-        background-color: #3d0000 !important;
-        color: #FFD700 !important;
-        border: 1px solid rgba(255, 215, 0, 0.5) !important;
-    }}
-    
-    /* 下拉選單展開後的選項清單 */
-    ul[role="listbox"] {{
-        background-color: #3d0000 !important;
-    }}
-    
-    ul[role="listbox"] li {{
-        color: #ffffff !important;
-    }}
+for sheet in xls.sheet_names:
 
-    /* 4. 數據高亮 (金色) */
-    [data-testid="stMetricValue"] {{
-        color: #FFD700 !important;
-        font-weight: bold !important;
-    }}
+    df = pd.read_excel(xls, sheet_name=sheet)
+    df.columns = df.columns.str.strip()
 
-    /* 5. 徹底解決滑動變白問題：強制使用實心背景 */
-    [data-testid="stExpander"] {{
-        background-color: #1a1a1a !important;
-        border: 1px solid rgba(255, 215, 0, 0.3) !important;
-        border-radius: 10px !important;
-        margin-bottom: 12px !important;
-        will-change: transform;
-    }}
-    
-    [data-testid="stExpander"] details summary {{
-        background-color: #262626 !important;
-        border-radius: 10px 10px 0 0;
-    }}
+    df['去回程'] = (
+        df['去回程']
+        .astype(str)
+        .str.strip()
+        .replace({'去程': '去', '回程': '回'})
+    )
 
-    [data-testid="stExpander"] details summary p {{
-        font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
-        font-size: 14px !important;
-        line-height: 1.6 !important;
-        color: #ffffff !important;
-        white-space: pre-wrap !important;
-    }}
+    df['完整時間'] = pd.to_datetime(
+        df['月'].astype(str) + '-' +
+        df['日'].astype(str) + ' ' +
+        df['時間'].astype(str),
+        format='%m-%d %H:%M',
+        errors='coerce'
+    )
 
-    /* 6. 修正 Dataframe 顯示 */
-    .stDataFrame div {{
-        background-color: transparent !important;
-    }}
-    
-    .watermark {{
-        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        opacity: 0.12; z-index: 0; pointer-events: none;
-    }}
+    df = df.sort_values('完整時間')
 
-    /* 手機版字體 */
-    @media (max-width: 600px) {{
-        [data-testid="stExpander"] details summary p {{
-            font-size: 12px !important;
-        }}
-    }}
-</style>
-""", unsafe_allow_html=True)
+    all_data[sheet] = df
 
-if img_base64:
-    st.markdown(f'<img src="data:image/png;base64,{img_base64}" class="watermark" width="700">', unsafe_allow_html=True)
+    # ===== 時間統計 =====
+    go_time = 0
+    back_time = 0
 
-st.title(f"{APP_TITLE}")
+    go_df = df[df['去回程'] == '去'].dropna(subset=['完整時間'])
+    back_df = df[df['去回程'] == '回'].dropna(subset=['完整時間'])
+
+    go_times = go_df['完整時間'].tolist()
+    back_times = back_df['完整時間'].tolist()
+
+    for i in range(1, len(go_times)):
+        diff = (go_times[i] - go_times[i - 1]).total_seconds()
+        if 0 < diff <= 60 * 60 * 24:
+            go_time += diff / 3600
+
+    for i in range(1, len(back_times)):
+        diff = (back_times[i] - back_times[i - 1]).total_seconds()
+        if 0 < diff <= 60 * 60 * 24:
+            back_time += diff / 3600
+
+    # ===== 天數統計 =====
+    total_days = df[['月', '日']].drop_duplicates().shape[0]
+    go_days = go_df[['月', '日']].drop_duplicates().shape[0]
+    back_days = back_df[['月', '日']].drop_duplicates().shape[0]
+
+    summary.append({
+        "年份": sheet,
+        "總天數": total_days,
+        "去程天數": go_days,
+        "回程天數": back_days,
+        "總時間(時)": round(go_time + back_time, 2),
+        "去程時間(時)": round(go_time, 2),
+        "回程時間(時)": round(back_time, 2)
+    })
+
+summary_df = pd.DataFrame(summary).sort_values("年份", ascending=False)
 
 # ==============================
-# 資料載入與核心邏輯
+# 年度總覽
 # ==============================
-@st.cache_data(show_spinner=False)
-def load_all_data(url):
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        xls = pd.ExcelFile(BytesIO(response.content), engine="openpyxl")
-        all_data_dict, full_list = {}, []
-        
-        for sheet in xls.sheet_names:
-            df = pd.read_excel(xls, sheet_name=sheet)
-            df.columns = df.columns.str.strip()
-            df['去回程'] = df['去回程'].astype(str).str.strip().replace({'去程': '去', '回程': '回'})
-            df['完整時間'] = pd.to_datetime(f"{sheet}-"+df['月'].astype(str)+'-'+df['日'].astype(str)+' '+df['時間'].astype(str), format='%Y-%m-%d %H:%M', errors='coerce')
-            df = df.dropna(subset=['完整時間']).sort_values('完整時間')
-            
-            # 計算有效時數
-            df['time_diff_sec'] = df['完整時間'].diff().dt.total_seconds()
-            df['effective_hours'] = df['time_diff_sec'].apply(lambda x: x/3600 if 0 < x <= 86400 else 0)
-            
-            all_data_dict[sheet] = df
-            full_list.append(df[['完整時間', '地點', '去回程']].assign(年份=sheet))
-        return all_data_dict, pd.concat(full_list), sorted(xls.sheet_names, reverse=True)
-    except: return None, None, []
 
-all_data, full_df, available_years = load_all_data(FILE_URL)
+st.subheader("1️⃣年度統計")
+st.dataframe(summary_df, use_container_width=True)
 
-if all_data:
-    selected_year = st.selectbox("請選擇年份", available_years)
-    year_df = all_data[selected_year].copy()
-    year_df['raw_date'] = year_df['完整時間'].dt.date
+# ==============================
+# 年度詳細頁
+# ==============================
 
-    # --- 1. 年度統計面板 (修正補回) ---
-    go_df = year_df[year_df['去回程'] == '去']
-    back_df = year_df[year_df['去回程'] == '回']
+st.subheader("2️⃣每日行程")
 
-    col1, col2, col3 = st.columns(3)
-    col1.metric("總天數", f"{year_df['raw_date'].nunique()} 天")
-    col2.metric("去程天數", f"{go_df['raw_date'].nunique()} 天")
-    col3.metric("回程天數", f"{back_df['raw_date'].nunique()} 天")
+selected_year = st.selectbox("選擇年份", summary_df["年份"])
 
-    col4, col5, col6 = st.columns(3)
-    col4.metric("總時數", f"{round(year_df['effective_hours'].sum(), 1)} hr")
-    col5.metric("去程時數", f"{round(go_df['effective_hours'].sum(), 1)} hr")
-    col6.metric("回程時數", f"{round(back_df['effective_hours'].sum(), 1)} hr")
+year_df = all_data[selected_year]
 
-    st.markdown("---")
+st.write(f"{selected_year} 年每日行程")
 
-    # --- 2. 每日摘要與詳細行程 ---
-    st.subheader(f"📅 {selected_year} 行程摘要")
-    
-    grouped = year_df.groupby("raw_date", sort=False)
+daily_df = year_df[['月', '日', '時間', '地點', '去回程']].copy()
+st.dataframe(daily_df, use_container_width=True)
 
-    for idx, (g_date, g) in enumerate(grouped):
-        g_sorted = g.sort_values("完整時間")
-        
-        # Line 1: 日期
-        line1 = g_date.strftime('%m/%d')
-        
-        # Line 2: 起點
-        first_node = g_sorted.iloc[0]
-        status_start = first_node['停駐駕'] if (pd.notna(first_node.get('停駐駕')) and str(first_node['停駐駕']).strip() != "") else "起駕"
-        line2 = f"{first_node['時間']}  {first_node['地點']}  {status_start}"
-        
-        # Line 3: 午休
-        line3 = ""
-        if '停駐駕' in g.columns:
-            l_match = g[g['停駐駕'].astype(str).str.contains("午休", na=False)]
-            if not l_match.empty:
-                target = l_match.iloc[0]
-                line3 = f"{target['時間']}  {target['地點']}  午休"
-        
-        # Line 4: 終點
-        line4 = ""
-        if len(g_sorted) > 1:
-            found_end = False
-            for kw in ["回宮", "朝天宮", "駐駕"]:
-                t_match = g[g['停駐駕'].astype(str).str.contains(kw, na=False)]
-                if not t_match.empty:
-                    t_node = t_match.iloc[-1]
-                    label = f"抵達{kw}" if kw == "朝天宮" else kw
-                    line4 = f"{t_node['時間']}  {t_node['地點']}  {label}"
-                    found_end = True
-                    break
-            if not found_end:
-                last_node = g_sorted.iloc[-1]
-                line4 = f"{last_node['時間']}  {last_node['地點']}  駐駕"
+# ==============================
+# 地點關鍵字搜尋
+# ==============================
 
-        # 組合摘要文字 (嚴格格式檢查)
-        summary_lines = [line1, line2]
-        if line3: summary_lines.append(line3)
-        if line4:
-            # 防止單筆行程重複顯示
-            if not (first_node['時間'] == last_node['時間'] and first_node['地點'] == last_node['地點']):
-                summary_lines.append(line4)
-            
-        label_text = "\n".join(summary_lines)
-        
-        # 展開後顯示該日所有行程資料 (詳細行程)
-        with st.expander(label_text):
-            cols = ['時間', '地點', '去回程']
-            if '停駐駕' in g.columns:
-                cols.append('停駐駕')
-            st.dataframe(g_sorted[cols], use_container_width=True)
+st.subheader("3️⃣地點查詢")
 
-    # --- 3. 搜尋功能 ---
-    st.markdown("---")
-    st.subheader("🔍 地點查詢")
-    search_key = st.text_input("搜尋關鍵字")
-    if search_key and not full_df.empty:
-        res = full_df[full_df['地點'].astype(str).str.contains(search_key, na=False)].copy()
-        if not res.empty:
-            res['日期時間'] = res['完整時間'].dt.strftime('%Y-%m-%d %H:%M')
-            st.dataframe(res[['年份', '日期時間', '地點', '去回程']].sort_values('日期時間', ascending=False), use_container_width=True)
-else:
-    st.error("無法載入資料")
+keyword = st.text_input("輸入地點關鍵字")
+
+if keyword:
+    results = []
+
+    for year, df in all_data.items():
+        match_df = df[df['地點'].astype(str).str.contains(keyword, na=False)]
+
+        for _, row in match_df.iterrows():
+            results.append({
+                "年份": year,
+                "月": row['月'],
+                "日": row['日'],
+                "時間": row['時間'],
+                "地點": row['地點']
+            })
+
+    if results:
+        result_df = pd.DataFrame(results)
+        st.dataframe(result_df, use_container_width=True)
+    else:
+        st.warning("沒有找到相關地點")

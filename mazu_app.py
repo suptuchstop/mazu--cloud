@@ -9,10 +9,6 @@ import logging
 # 設定日誌記錄，以便在後台查看錯誤細節
 logging.basicConfig(level=logging.INFO)
 
-# ==============================
-# 初始化與設定 (Initialization)
-# ==============================
-
 st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
 FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
@@ -20,7 +16,7 @@ APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
-# 自定義介面樣式 (Custom Styling)
+# 背景圖片與介面樣式
 # ==============================
 
 @st.cache_data
@@ -148,7 +144,7 @@ def load_data():
     # 建立摘要日 (依據「完整時間」的日期)
     df["摘要日"] = df["完整時間"].dt.date
 
-    # --- 關鍵核心邏輯修正 (文化日與深夜起駕) ---
+    # --- 關鍵核心邏輯 (文化日定義) ---
     # 白沙屯拱天宮進香文化：深夜起駕算入新一天行程。
     # 判斷標準：若時間在 23:30 到 00:00 之間。
     df["行軍時間"] = df["完整時間"]
@@ -173,9 +169,17 @@ df = load_data()
 if df.empty:
     st.stop() # 如果資料為空，停止執行後續介面
 
-# 提取不重複年份並從大到小排序 ( Desc order )
+# 提取不重複年份並從大到小排序 (Desc order)
 years = sorted(df["年"].unique(), reverse=True)
 year = st.selectbox("選擇年份", years, index=0)
+
+# 地點搜尋文字框 ( st.text_input )
+keyword = st.text_input("地點關鍵字搜尋")
+
+# 執行篩選
+year_df = df[df["年"] == year].copy()
+if keyword:
+    year_df = year_df[year_df["地點"].str.contains(keyword, na=False)]
 
 # ==============================
 # 年度統計指標
@@ -224,71 +228,48 @@ st.divider()
 
 st.subheader("每日行程摘要")
 
-# --- 關鍵核心邏輯修正 (兵馬先動，標題日期回溯) ---
+# --- 關鍵核心邏輯修正 (兵馬先動) ---
 # 依「行軍日」（文化日）進行分組，並自動排序 ( chronological order )
 grouped = year_df.groupby("行軍日", sort=True)
 
 for g_date, g_df in grouped:
+    # 格式化日期為月/日
+    date_str = pd.to_datetime(g_date).strftime("%m/%d")
     
     # 組合摘要文字列
     summary_lines = []
     
-    # --- **NEW: 標題日期前置與起駕事件** ---
-    # 功能需求 2 的 G欄判斷
+    # --- 關鍵核心邏輯 (功能需求 2 ) ---
+    # 尋找特定的停駐駕事件：午休、駐駕、抵達北港、回宮。
     
     # 取得起駕 (當天第一筆)
     start_row = g_df.sort_values("完整時間").iloc[0]
-    
-    # **NEW: 標題起駕日期回溯**
-    # 如果起駕時間是深夜 (23:30-00:00)，這筆記錄在Excel中日曆天是前一天。
-    # 這裡直接從 `start_row` 提取其原本的「摘要日」來顯示。
-    start_date_display = pd.to_datetime(start_row["摘要日"]).strftime("%m/%d")
-    
-    # 組合起駕摘要：日期前置
-    summary_lines.append(f"{start_date_display} 起駕: {start_row['完整時間'].strftime('%H:%M')} {start_row['地點']}")
+    summary_lines.append(f"起駕: {start_row['完整時間'].strftime('%H:%M')} {start_row['地點']}")
 
-    # 尋找特定的停駐駕事件。此時分組日期 `g_date` 就是行程的文化日日期。
-    # 在Excel中，這整天行程的日曆日期可能跨越兩天（例如深夜起駕， Excel中是前一天深夜）。
-    
-    # **NEW: 午休、駐駕等事件日期前置**
-    # 我們不依賴 Excel 的行順序，而是依據事件的停駐駕類別來查找。
-    
+    # 功能需求 2 的 G欄判斷
     lunch_rest = g_df[g_df["停駐駕"] == "午休"]
     if not lunch_rest.empty:
-        l_row = lunch_rest.iloc[0]
-        l_date_display = pd.to_datetime(l_row["摘要日"]).strftime("%m/%d")
-        summary_lines.append(f"{l_date_display} 午休: {l_row['完整時間'].strftime('%H:%M')} {l_row['地點']}")
+        summary_lines.append(f"午休: {lunch_rest.iloc[0]['完整時間'].strftime('%H:%M')} {lunch_rest.iloc[0]['地點']}")
 
     night_rest = g_df[g_df["停駐駕"] == "駐駕"]
     if not night_rest.empty:
-        n_row = night_rest.iloc[0]
-        n_date_display = pd.to_datetime(n_row["摘要日"]).strftime("%m/%d")
-        summary_lines.append(f"{n_date_display} 駐駕: {n_row['完整時間'].strftime('%H:%M')} {n_row['地點']}")
+        summary_lines.append(f"駐駕: {night_rest.iloc[0]['完整時間'].strftime('%H:%M')} {night_rest.iloc[0]['地點']}")
 
     chaotian_arrival = g_df[g_df["停駐駕"] == "朝天宮"]
     if not chaotian_arrival.empty:
-        c_row = chaotian_arrival.iloc[0]
-        c_date_display = pd.to_datetime(c_row["摘要日"]).strftime("%m/%d")
-        summary_lines.append(f"{c_date_display} 抵達北港: {c_row['完整時間'].strftime('%H:%M')}")
+        summary_lines.append(f"抵達北港: {chaotian_arrival.iloc[0]['完整時間'].strftime('%H:%M')}")
 
     home_return = g_df[g_df["停駐駕"] == "回宮"]
     if not home_return.empty:
-        h_row = home_return.iloc[0]
-        h_date_display = pd.to_datetime(h_row["摘要日"]).strftime("%m/%d")
-        summary_lines.append(f"{h_date_display} 回宮: {h_row['完整時間'].strftime('%H:%M')}")
+        summary_lines.append(f"回宮: {home_return.iloc[0]['完整時間'].strftime('%H:%M')}")
 
     # 將所有找到的事件組合成一個分號分隔的字串
     daily_summary_text = " ; ".join(summary_lines)
-    
-    # --- **NEW: 展開器標題日期處理** ---
-    # **展開器的日期標題應顯示「日曆上的實際日期」 (g_df.iloc[0]["摘要日"])**。
-    # 這樣使用者一眼就能看出這一天行程跨越了哪個日曆天。
-    expander_date_display = pd.to_datetime(g_date).strftime("%m/%d")
 
-    # 建立展開器 (st.expander)，標題包含回溯後的日期和摘要文字
-    with st.expander(f"{expander_date_display} {daily_summary_text}"):
+    # 建立展開器 (st.expander)，標題包含日期和摘要文字
+    with st.expander(f"{date_str} {daily_summary_text}"):
         
-        # --- **NEW: 詳細行程內容合併 (跨年度地點搜尋需求修正)** ---
+        # --- 修正後的關鍵核心區塊 (功能需求 3 ) ---
         # 顯示展開後的詳細內容表格。
         # 這裡必須使用「同一個行軍日分組內」的資料 (g_df)，
         # 才能確保展開內容與標題上顯示的摘要文字是完全一致的。
@@ -304,11 +285,3 @@ for g_date, g_df in grouped:
 
         # 顯示詳細表格
         st.dataframe(display_df, use_container_width=True, hide_index=True)
-
-# 地點搜尋文字框 ( st.text_input )
-keyword = st.text_input("跨年度地點關鍵字搜尋,例:白沙屯拱天宮")
-
-# 執行篩選
-year_df = df[df["年"] == year].copy()
-if keyword:
-    year_df = year_df[year_df["地點"].str.contains(keyword, na=False)]

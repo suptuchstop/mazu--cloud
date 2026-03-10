@@ -92,12 +92,19 @@ def load_data():
     df["月"]=df["月"].astype(int)
     df["日"]=df["日"].astype(int)
 
-    df["完整時間"]=pd.to_datetime(
-        df["年份"].astype(str)+"-"+
-        df["月"].astype(str)+"-"+
-        df["日"].astype(str)+" "+
-        df["時間"].astype(str)
+    df["時間"] = df["時間"].astype(str).str.strip()
+
+    datetime_str = (
+        df["年份"].astype(str) + "-" +
+        df["月"].astype(str).str.zfill(2) + "-" +
+        df["日"].astype(str).str.zfill(2) + " " +
+        df["時間"]
     )
+
+    df["完整時間"] = pd.to_datetime(datetime_str, errors="coerce")
+    
+    df = df.dropna(subset=["完整時間"])
+
 
     df["摘要日"]=df["完整時間"].dt.date
 

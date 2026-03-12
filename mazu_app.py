@@ -150,7 +150,7 @@ def load_data():
     # 建立摘要日 (依據「完整時間」的日期)
     df["摘要日"] = df["完整時間"].dt.date
     
-    print(df[df["年"]==2022].head(10))
+ 
 
 
 
@@ -166,6 +166,9 @@ def load_data():
 
     # 確保「年」欄位存在並排序
     df["年"] = df["年份"]
+
+    print(df[df["年"]==2022].head(10))
+    
     df = df.sort_values("完整時間")
 
     return df

@@ -243,26 +243,26 @@ for g_date, g_df in grouped:
     summary_lines = []
     
     # --- 關鍵核心邏輯 (功能需求 2 ) ---
-    # 尋找特定的停駐駕事件：午休、駐駕、抵達北港、回宮。
+    # 尋找特定的事件：午休、駐駕、抵達北港、回宮。
     
     # 取得起駕 (當天第一筆)
     start_row = g_df.sort_values("完整時間").iloc[0]
     summary_lines.append(f"起駕: {start_row['完整時間'].strftime('%H:%M')} {start_row['地點']}")
 
     # 功能需求 2 的 G欄判斷
-    lunch_rest = g_df[g_df["停駐駕"] == "午休"]
+    lunch_rest = g_df[g_df["事件"] == "午休"]
     if not lunch_rest.empty:
         summary_lines.append(f"午休: {lunch_rest.iloc[0]['完整時間'].strftime('%H:%M')} {lunch_rest.iloc[0]['地點']}")
 
-    night_rest = g_df[g_df["停駐駕"] == "駐駕"]
+    night_rest = g_df[g_df["事件"] == "駐駕"]
     if not night_rest.empty:
         summary_lines.append(f"駐駕: {night_rest.iloc[0]['完整時間'].strftime('%H:%M')} {night_rest.iloc[0]['地點']}")
 
-    chaotian_arrival = g_df[g_df["停駐駕"] == "朝天宮"]
+    chaotian_arrival = g_df[g_df["事件"] == "抵達北港朝天宮"]
     if not chaotian_arrival.empty:
         summary_lines.append(f"抵達北港: {chaotian_arrival.iloc[0]['完整時間'].strftime('%H:%M')}")
 
-    home_return = g_df[g_df["停駐駕"] == "回宮"]
+    home_return = g_df[g_df["事件"] == "回宮"]
     if not home_return.empty:
         summary_lines.append(f"回宮: {home_return.iloc[0]['完整時間'].strftime('%H:%M')}")
 
@@ -278,11 +278,11 @@ for g_date, g_df in grouped:
         # 才能確保展開內容與標題上顯示的摘要文字是完全一致的。
         
         # 建立一個副本進行顯示
-        display_df = g_df[["完整時間", "地點", "去回程", "停駐駕"]].copy()
+        display_df = g_df[["時間","地點","去回程","事件","備註"]].copy()
         # 格式化顯示時間
         display_df["時間"] = display_df["完整時間"].dt.strftime("%H:%M")
         # 重新排列欄位順序，讓時間排在最前面
-        display_df = display_df[["時間", "地點", "去回程", "停駐駕"]]
+        display_df = display_df[["時間", "地點", "去回程", "事件"]]
         # 依時間升序排序
         display_df = display_df.sort_values("時間")
 
@@ -314,11 +314,11 @@ if keyword and (search_btn or True):
 
     if len(result) > 0:
 
-        result_display = result[["完整時間","年","地點","去回程","停駐駕"]].copy()
+        result_display = result[["完整時間","年","地點","去回程","事件"]].copy()
 
         result_display["時間"] = result_display["完整時間"].dt.strftime("%Y/%m/%d %H:%M")
 
-        result_display = result_display[["時間","年","地點","去回程","停駐駕"]]
+        result_display = result_display[["時間","年","地點","去回程","事件"]]
 
         st.dataframe(result_display, use_container_width=True)
 

@@ -142,8 +142,7 @@ def load_data():
          hour=df["時"],
          minute=df["分"]
         ),
-        errors="co" \
-        "erce"
+        errors="coerce"
     )
     df = df.dropna(subset=["完整時間"])
     
@@ -151,9 +150,6 @@ def load_data():
     df["摘要日"] = df["完整時間"].dt.date
     
  
-
-
-
     # --- 關鍵核心邏輯 (文化日定義) ---
     # 白沙屯拱天宮進香文化：深夜起駕算入新一天行程。
     # 判斷標準：若時間在 23:30 到 00:00 之間。
@@ -167,8 +163,8 @@ def load_data():
     # 確保「年」欄位存在並排序
     df["年"] = df["年份"]
 
-    print(df[df["年"]==2022].head(10))
-    
+    # print(df[df["年"]==2022].head(10))
+
     df = df.sort_values("完整時間")
 
     return df
@@ -186,13 +182,7 @@ if df.empty:
 years = sorted(df["年"].unique(), reverse=True)
 year = st.selectbox("選擇年份", years, index=0)
 
-# 地點搜尋文字框 ( st.text_input )
-keyword = st.text_input("地點關鍵字搜尋")
-
-# 執行篩選
 year_df = df[df["年"] == year].copy()
-if keyword:
-    year_df = year_df[year_df["地點"].str.contains(keyword, na=False)]
 
 # ==============================
 # 年度統計指標
@@ -298,3 +288,40 @@ for g_date, g_df in grouped:
 
         # 顯示詳細表格
         st.dataframe(display_df, use_container_width=True, hide_index=True)
+
+# ==============================
+# 地點搜尋 (跨年度)
+# ==============================
+
+st.divider()
+
+st.subheader("🔍 地點關鍵字搜尋")
+
+col1,col2 = st.columns([4,1])
+
+with col1:
+    keyword = st.text_input("輸入地點關鍵字")
+
+with col2:
+    search_btn = st.button("搜尋")
+
+# ENTER 或 按鈕 都會觸發
+if keyword and (search_btn or True):
+
+    result = df[df["地點"].str.contains(keyword, na=False)]
+
+    result = result.sort_values("完整時間")
+
+    if len(result) > 0:
+
+        result_display = result[["完整時間","年","地點","去回程","停駐駕"]].copy()
+
+        result_display["時間"] = result_display["完整時間"].dt.strftime("%Y/%m/%d %H:%M")
+
+        result_display = result_display[["時間","年","地點","去回程","停駐駕"]]
+
+        st.dataframe(result_display, use_container_width=True)
+
+    else:
+
+        st.warning("查無資料")

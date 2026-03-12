@@ -124,25 +124,35 @@ def load_data():
     df["月"] = df["月"].fillna(0).astype(int)
     df["日"] = df["日"].fillna(0).astype(int)
 
-    # 清理並確保「時間」欄位為字串
-    df["時間"] = df["時間"].astype(str).str.strip()
+    # 先確保時間欄是字串
+    time_str = df["時間"].astype(str).str.strip()
 
-    # 建立 datetime 字串 (YYYY-MM-DD HH:MM)
-    datetime_str = (
-        df["年份"].astype(str) + "-" +
-        df["月"].astype(str).str.zfill(2) + "-" +
-        df["日"].astype(str).str.zfill(2) + " " +
-        df["時間"]
+    # 拆出小時與分鐘
+    df["時"] = time_str.str.split(":").str[0]
+    df["分"] = time_str.str.split(":").str[1]
+
+    df["時"] = pd.to_numeric(df["時"], errors="coerce")
+    df["分"] = pd.to_numeric(df["分"], errors="coerce")
+
+    df["完整時間"] = pd.to_datetime(
+        dict(
+         year=df["年份"],
+          month=df["月"],
+         day=df["日"],
+         hour=df["時"],
+         minute=df["分"]
+        ),
+        errors="co" \
+        "erce"
     )
-
-    # 轉換為完整時間，強制拋棄錯誤格式 (errors="coerce")
-    df["完整時間"] = pd.to_datetime(datetime_str, format="%Y-%m-%d %H:%M", errors="coerce")
-    
-    # 丟棄「時間」欄位無法辨識的記錄，確保資料完整性
     df = df.dropna(subset=["完整時間"])
-
+    
     # 建立摘要日 (依據「完整時間」的日期)
     df["摘要日"] = df["完整時間"].dt.date
+    
+    print(df[df["年"]==2022].head(10))
+
+
 
     # --- 關鍵核心邏輯 (文化日定義) ---
     # 白沙屯拱天宮進香文化：深夜起駕算入新一天行程。

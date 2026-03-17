@@ -314,7 +314,7 @@ if keyword:
 # ==============================
 # 頁尾資訊 (資料出處)
 # ==============================
-
+st.divider()
 st.markdown("""
     <style>
     .footer {
@@ -322,19 +322,28 @@ st.markdown("""
         left: 0;
         bottom: 0;
         width: 100%;
-        background-color: rgba(43, 0, 0, 0.8); /* 深紅透明背景 */
-        color: #FFD700; /* 金色字體 */
+        background-color: rgba(43, 0, 0, 0.9); /* 稍微調深一點點，增加多連結時的閱讀性 */
+        color: #FFD700;
         text-align: right;
-        padding: 10px 20px;
-        font-size: 14px;
+        padding: 5px 20px; /* 縮小垂直間距 */
+        font-size: 13px;   /* 稍微調細字體 */
         z-index: 100;
+        border-top: 1px solid rgba(255, 215, 0, 0.2); /* 加上細微金邊 */
     }
     .footer a {
         color: #FFD700 !important;
-        text-decoration: underline;
+        text-decoration: none;
+        margin-left: 10px; /* 連結間的距離 */
+    }
+    .footer a:hover {
+        text-decoration: underline; /* 滑鼠移上去再顯示底線 */
     }
     </style>
     <div class="footer">
-        資料參考出處：<a href="https://www.ewdna.com/2022/03/baishatun-mazu.html#2020/" target="_blank">符碼記憶</a> | 本系統僅供進香參考使用
+        資料參考出處：
+        <a href="https://www.ewdna.com/2022/03/baishatun-mazu.html#2020" target="_blank">符碼記憶</a> | 
+        <a href="https://web.archive.org/web/20210920062056/https://zh.wikipedia.org/wiki/%E7%99%BD%E6%B2%99%E5%B1%AF%E5%AA%BD%E7%A5%96%E9%80%B2%E9%A6%99#%E6%AD%B7%E5%B9%B4%E8%B7%AF%E5%BE%91%E5%9C%96" target="_blank">wiki</a> | 
+        <a href="https://book.flipbuilder.com/mazu.baishatun/" target="_blank">官方年刊</a> | 
+        本系統僅供進香參考
     </div>
     """, unsafe_allow_html=True)

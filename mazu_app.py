@@ -172,10 +172,16 @@ st.header(f"{year} 白沙屯媽祖進香資料總覽")
 
 # 🔥 時間格式（可折行）
 def format_time(val):
-    if pd.isna(val):
+    try:
+        dt = pd.to_datetime(val, errors="coerce")
+
+        if pd.isna(dt):
+            return "-"
+
+        return dt.strftime("%m/%d\n%H:%M")
+
+    except:
         return "-"
-    dt = pd.to_datetime(val)
-    return dt.strftime("%m/%d\n%H:%M")
 
 # ==============================
 # 年度資訊（上排）

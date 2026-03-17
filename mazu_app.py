@@ -174,12 +174,9 @@ st.header(f"{year} 白沙屯媽祖進香資料總覽")
 def format_time(val):
     try:
         dt = pd.to_datetime(val, errors="coerce")
-
         if pd.isna(dt):
             return "-"
-
         return dt.strftime("%m/%d\n%H:%M")
-
     except:
         return "-"
 
@@ -188,17 +185,11 @@ def format_time(val):
 # ==============================
 
 if info_df is not None:
-
     info_df["年份"] = pd.to_numeric(info_df["年份"], errors="coerce")
-
     year_info = info_df[info_df["年份"] == year]
-
     if not year_info.empty:
-
         info = year_info.iloc[0]
-
         colA, colB, colC, colD, colE, colF, colG, colH = st.columns(8)
-
         colA.metric("歲次", info["歲次"])
         colB.metric("時程", info["時程"])
         colC.metric("去程", info["去程"])
@@ -208,20 +199,16 @@ if info_df is not None:
         colG.metric("刈火", format_time(info["刈火"]))
         colH.metric("回鑾", format_time(info["回鑾"]))
         st.metric("報名人數", f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-")
-st.divider()
+st.divider("WERWRWRWRWER")
 # ==============================
 # 原本統計（完全沒動）
 # ==============================
 
 total_days = year_df["行軍日"].nunique()
-
 go_days = year_df[year_df["去回程"] == "去程"]["行軍日"].nunique()
-
 back_days = year_df[year_df["去回程"] == "回程"]["行軍日"].nunique()
-
 start_time = year_df.iloc[0]["完整時間"]
 end_time = year_df.iloc[-1]["完整時間"]
-
 total_hours = round((end_time - start_time).total_seconds() / 3600, 1)
 
 go_df = year_df[year_df["去回程"] == "去程"]

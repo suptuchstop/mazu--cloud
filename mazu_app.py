@@ -150,7 +150,7 @@ def load_data():
 
 df, info_df = load_data()
 
-print(df["年"].unique())
+#print(df["年"].unique())
 
 if df.empty:
     st.stop()
@@ -198,7 +198,7 @@ if info_df is not None:
         colC.metric("去程", info["去程"])
         colD.metric("回程", info["回程"])
         colE.metric("登轎出發", format_time(info["登轎出發"]))
-        colF.metric("抵達北港", format_time(info["抵達北港"]))
+        colF.metric("抵達北港", pd.to_datetime(info["抵達北港"]).strftime("%m/%d"))
         colG.metric("刈火", format_time(info["刈火"]))
         colH.metric("回鑾", format_time(info["回鑾"]))
         st.metric("報名人數", f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-")

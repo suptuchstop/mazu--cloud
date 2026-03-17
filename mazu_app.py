@@ -15,7 +15,7 @@ APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # ==============================
-# 背景圖片
+# 背景圖片 + CSS
 # ==============================
 
 @st.cache_data
@@ -39,11 +39,19 @@ background-image:linear-gradient(135deg,#2b0000 0%,#4b0000 50%,#1a0000 100%);
 color:#ffffff !important;
 }
 
+/* 🔥 年度資訊（上排）字體縮小 */
 [data-testid="stMetricValue"]{
 color:#FFD700 !important;
 font-weight:bold;
+font-size:20px !important;
+white-space:pre-line !important;
 }
 
+[data-testid="stMetricLabel"]{
+font-size:12px !important;
+}
+
+/* 下方 expander */
 [data-testid="stExpander"]{
 background:#1a1a1a;
 border:1px solid rgba(255,215,0,0.3);
@@ -160,7 +168,17 @@ year_df = df[df["年"] == year].copy()
 
 st.header(f"{year} 白沙屯媽祖進香資料總覽")
 
-# ✅ 年度資訊（加在最上面）
+# 🔥 時間格式（可折行）
+def format_time(val):
+    if pd.isna(val):
+        return "-"
+    dt = pd.to_datetime(val)
+    return dt.strftime("%m/%d\n%H:%M")
+
+# ==============================
+# 年度資訊（上排）
+# ==============================
+
 if info_df is not None:
 
     info_df["年份"] = pd.to_numeric(info_df["年份"], errors="coerce")
@@ -171,20 +189,18 @@ if info_df is not None:
 
         info = year_info.iloc[0]
 
-        colA, colB, colC, colD, colE, colF, colG, colH, colI = st.columns(9)
-        
+        colA, colB, colC, colD, colE, colF, colG, colH = st.columns(8)
+
         colA.metric("歲次", info["歲次"])
         colB.metric("時程", info["時程"])
         colC.metric("去程", info["去程"])
         colD.metric("回程", info["回程"])
-        colE.metric("登轎出發", pd.to_datetime(info["登轎出發"]).strftime("%m/%d %H:%M"))
-        colF.metric("抵達北港", pd.to_datetime(info["抵達北港"]).strftime("%m/%d"))
-        colG.metric("刈火", pd.to_datetime(info["刈火"]).strftime("%m/%d %H:%M"))
-        colH.metric("回鑾", pd.to_datetime(info["回鑾"]).strftime("%m/%d %H:%M"))
-        colI.metric("報名人數", f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-")
-
+        colE.metric("登轎出發", format_time(info["登轎出發"]))
+        colF.metric("抵達北港", format_time(info["抵達北港"]))
+        colG.metric("刈火", format_time(info["刈火"]))
+        colH.metric("回鑾", format_time(info["回鑾"]))
+        st.metric("報名人數", f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-")
 st.divider()
-
 # ==============================
 # 原本統計（完全沒動）
 # ==============================
@@ -212,13 +228,10 @@ c1, c2, c3, c4, c5, c6 = st.columns(6)
 c1.metric("總天數", total_days)
 c2.metric("去程天數", go_days)
 c3.metric("回程天數", back_days)
-
 c4.metric("總時數", total_hours)
 c5.metric("去程時數", go_hours)
 c6.metric("回程時數", back_hours)
-
 st.divider()
-
 # ==============================
 # 每日摘要
 # ==============================

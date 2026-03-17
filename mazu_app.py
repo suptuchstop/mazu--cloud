@@ -171,13 +171,19 @@ if info_df is not None:
 
         info = year_info.iloc[0]
 
-        colA, colB, colC, colD, colE = st.columns(5)
-
+        colA, colB, colC, colD, colE, colF, colG, colH, colI = st.columns(9)
+        
         colA.metric("歲次", info["歲次"])
         colB.metric("時程", info["時程"])
         colC.metric("去程", info["去程"])
         colD.metric("回程", info["回程"])
-        colE.metric("報名人數", f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-")
+        colE.metric("登轎出發", info["發轎出發"])
+        colF.metric("抵達北港", info["抵達港朝天"])
+        colG.metric("刈火", info["灲火"])
+        colH.metric("回鑾",info["回鑾"])
+        colI.metric("報名人數", f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-")
+
+st.divider()
 
 # ==============================
 # 原本統計（完全沒動）

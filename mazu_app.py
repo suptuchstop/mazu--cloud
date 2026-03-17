@@ -80,19 +80,23 @@ def load_data():
     r = requests.get(FILE_URL)
     r.raise_for_status()
 
-    sheets = pd.read_excel(BytesIO(r.content),sheet_name=None)
+    sheets = pd.read_excel(BytesIO(r.content), sheet_name=None)
 
     df_list = []
+    info_df = None
 
-    for name,data in sheets.items():
+    for name, data in sheets.items():
+
+        if name == "年度資訊":
+            info_df = data.copy()
+            info_df.columns = info_df.columns.str.strip()
+            continue
 
         data = data.dropna(how="all")
-
         data["年份"] = int(name)
-
         df_list.append(data)
 
-    df = pd.concat(df_list,ignore_index=True)
+    df = pd.concat(df_list, ignore_index=True)
 
     df.columns = df.columns.str.strip()
 
@@ -100,12 +104,13 @@ def load_data():
     df["日"] = df["日"].fillna(0).astype(int)
 
     df["時間"] = df["時間"].astype(str).str.strip()
+    df["時間"] = df["時間"].str.replace("：", ":")
 
     df["時"] = df["時間"].str.split(":").str[0]
     df["分"] = df["時間"].str.split(":").str[1]
 
-    df["時"] = pd.to_numeric(df["時"],errors="coerce")
-    df["分"] = pd.to_numeric(df["分"],errors="coerce")
+    df["時"] = pd.to_numeric(df["時"], errors="coerce")
+    df["分"] = pd.to_numeric(df["分"], errors="coerce")
 
     df["完整時間"] = pd.to_datetime(
         dict(
@@ -124,9 +129,8 @@ def load_data():
 
     df["行軍時間"] = df["完整時間"]
 
-    mask = (df["完整時間"].dt.hour==23) & (df["完整時間"].dt.minute>=30)
-
-    df.loc[mask,"行軍時間"] = df.loc[mask,"行軍時間"] + timedelta(days=1)
+    mask = (df["完整時間"].dt.hour == 23) & (df["完整時間"].dt.minute >= 30)
+    df.loc[mask, "行軍時間"] = df.loc[mask, "行軍時間"] + timedelta(days=1)
 
     df["行軍日"] = df["行軍時間"].dt.date
 
@@ -134,9 +138,9 @@ def load_data():
 
     df = df.sort_values("完整時間")
 
-    return df
+    return df, info_df
 
-df = load_data()
+df, info_df = load_data()
 
 if df.empty:
     st.stop()
@@ -145,11 +149,10 @@ if df.empty:
 # 年份選擇
 # ==============================
 
-years = sorted(df["年"].unique(),reverse=True)
+years = sorted(df["年"].unique(), reverse=True)
+year = st.selectbox("選擇年份", years, index=0)
 
-year = st.selectbox("選擇年份",years,index=0)
-
-year_df = df[df["年"]==year].copy()
+year_df = df[df["年"] == year].copy()
 
 # ==============================
 # 年度統計
@@ -157,33 +160,56 @@ year_df = df[df["年"]==year].copy()
 
 st.header(f"{year} 白沙屯媽祖進香資料總覽")
 
+# ✅ 年度資訊（加在最上面）
+if info_df is not None:
+
+    info_df["年份"] = pd.to_numeric(info_df["年份"], errors="coerce")
+
+    year_info = info_df[info_df["年份"] == year]
+
+    if not year_info.empty:
+
+        info = year_info.iloc[0]
+
+        colA, colB, colC, colD, colE = st.columns(5)
+
+        colA.metric("歲次", info["歲次"])
+        colB.metric("時程", info["時程"])
+        colC.metric("去程", info["去程"])
+        colD.metric("回程", info["回程"])
+        colE.metric("報名人數", f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-")
+
+# ==============================
+# 原本統計（完全沒動）
+# ==============================
+
 total_days = year_df["行軍日"].nunique()
 
-go_days = year_df[year_df["去回程"]=="去程"]["行軍日"].nunique()
+go_days = year_df[year_df["去回程"] == "去程"]["行軍日"].nunique()
 
-back_days = year_df[year_df["去回程"]=="回程"]["行軍日"].nunique()
+back_days = year_df[year_df["去回程"] == "回程"]["行軍日"].nunique()
 
 start_time = year_df.iloc[0]["完整時間"]
 end_time = year_df.iloc[-1]["完整時間"]
 
-total_hours = round((end_time-start_time).total_seconds()/3600,1)
+total_hours = round((end_time - start_time).total_seconds() / 3600, 1)
 
-go_df = year_df[year_df["去回程"]=="去程"]
-back_df = year_df[year_df["去回程"]=="回程"]
+go_df = year_df[year_df["去回程"] == "去程"]
+back_df = year_df[year_df["去回程"] == "回程"]
 
-go_hours = round((go_df.iloc[-1]["完整時間"]-go_df.iloc[0]["完整時間"]).total_seconds()/3600,1)
+go_hours = round((go_df.iloc[-1]["完整時間"] - go_df.iloc[0]["完整時間"]).total_seconds() / 3600, 1)
 
-back_hours = round((back_df.iloc[-1]["完整時間"]-back_df.iloc[0]["完整時間"]).total_seconds()/3600,1)
+back_hours = round((back_df.iloc[-1]["完整時間"] - back_df.iloc[0]["完整時間"]).total_seconds() / 3600, 1)
 
-c1,c2,c3,c4,c5,c6 = st.columns(6)
+c1, c2, c3, c4, c5, c6 = st.columns(6)
 
-c1.metric("總天數",total_days)
-c2.metric("去程天數",go_days)
-c3.metric("回程天數",back_days)
+c1.metric("總天數", total_days)
+c2.metric("去程天數", go_days)
+c3.metric("回程天數", back_days)
 
-c4.metric("總時數",total_hours)
-c5.metric("去程時數",go_hours)
-c6.metric("回程時數",back_hours)
+c4.metric("總時數", total_hours)
+c5.metric("去程時數", go_hours)
+c6.metric("回程時數", back_hours)
 
 st.divider()
 

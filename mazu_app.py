@@ -150,6 +150,8 @@ def load_data():
 
 df, info_df = load_data()
 
+print(df["年"].unique())
+
 if df.empty:
     st.stop()
 

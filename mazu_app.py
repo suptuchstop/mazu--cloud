@@ -199,7 +199,7 @@ if info_df is not None:
         colG.metric("刈火", format_time(info["刈火"]))
         colH.metric("回鑾", format_time(info["回鑾"]))
         st.metric("報名人數", f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-")
-st.divider("WERWRWRWRWER")
+st.divider()
 # ==============================
 # 原本統計（完全沒動）
 # ==============================
@@ -310,3 +310,31 @@ if keyword:
     else:
 
         st.warning("查無資料")
+
+# ==============================
+# 頁尾資訊 (資料出處)
+# ==============================
+
+st.markdown("""
+    <style>
+    .footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: rgba(43, 0, 0, 0.8); /* 深紅透明背景 */
+        color: #FFD700; /* 金色字體 */
+        text-align: right;
+        padding: 10px 20px;
+        font-size: 14px;
+        z-index: 100;
+    }
+    .footer a {
+        color: #FFD700 !important;
+        text-decoration: underline;
+    }
+    </style>
+    <div class="footer">
+        資料參考出處：<a href="https://www.ewdna.com/2022/03/baishatun-mazu.html#2020/" target="_blank">符碼記憶</a> | 本系統僅供進香參考使用
+    </div>
+    """, unsafe_allow_html=True)

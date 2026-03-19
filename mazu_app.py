@@ -7,6 +7,7 @@ from datetime import timedelta
 import logging
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 
@@ -39,7 +40,6 @@ background-image:linear-gradient(135deg,#2b0000 0%,#4b0000 50%,#1a0000 100%);
 color:#ffffff !important;
 }
 
-/* 🔥 年度資訊（上排）字體縮小 */
 [data-testid="stMetricValue"]{
 color:#FFD700 !important;
 font-weight:bold;
@@ -51,7 +51,6 @@ white-space:pre-line !important;
 font-size:12px !important;
 }
 
-/* 下方 expander */
 [data-testid="stExpander"]{
 background:#1a1a1a;
 border:1px solid rgba(255,215,0,0.3);
@@ -79,26 +78,28 @@ if img_base64:
 st.title(APP_TITLE)
 
 # ==============================
-# 讀取Excel
+# 讀取Excel（優化版）
 # ==============================
 
-@st.cache_data
+@st.cache_data(ttl=600)
 def load_data():
 
-    r = requests.get(FILE_URL)
+    r = requests.get(FILE_URL, timeout=10)
     r.raise_for_status()
 
-    sheets = pd.read_excel(BytesIO(r.content), sheet_name=None)
+    xls = pd.ExcelFile(BytesIO(r.content))
 
     df_list = []
     info_df = None
 
-    for name, data in sheets.items():
+    for name in xls.sheet_names:
 
         if name == "年度資訊":
-            info_df = data.copy()
+            info_df = pd.read_excel(xls, sheet_name=name)
             info_df.columns = info_df.columns.str.strip()
             continue
+
+        data = pd.read_excel(xls, sheet_name=name)
 
         data = data.dropna(how="all")
         data["年份"] = int(name)
@@ -114,11 +115,10 @@ def load_data():
     df["時間"] = df["時間"].astype(str).str.strip()
     df["時間"] = df["時間"].str.replace("：", ":")
 
-    df["時"] = df["時間"].str.split(":").str[0]
-    df["分"] = df["時間"].str.split(":").str[1]
+    time_split = df["時間"].str.split(":", expand=True)
 
-    df["時"] = pd.to_numeric(df["時"], errors="coerce")
-    df["分"] = pd.to_numeric(df["分"], errors="coerce")
+    df["時"] = pd.to_numeric(time_split[0], errors="coerce")
+    df["分"] = pd.to_numeric(time_split[1], errors="coerce")
 
     df["完整時間"] = pd.to_datetime(
         dict(
@@ -144,13 +144,11 @@ def load_data():
 
     df["年"] = df["年份"]
 
-    df = df.sort_values("完整時間")
+    df = df.sort_values("完整時間").reset_index(drop=True)
 
     return df, info_df
 
 df, info_df = load_data()
-
-#print(df["年"].unique())
 
 if df.empty:
     st.stop()
@@ -170,7 +168,6 @@ year_df = df[df["年"] == year].copy()
 
 st.header(f"{year} 白沙屯媽祖進香資料總覽")
 
-# 🔥 時間格式（可折行）
 def format_time(val):
     try:
         dt = pd.to_datetime(val, errors="coerce")
@@ -181,7 +178,7 @@ def format_time(val):
         return "-"
 
 # ==============================
-# 年度資訊（上排）
+# 年度資訊
 # ==============================
 
 if info_df is not None:
@@ -195,27 +192,30 @@ if info_df is not None:
         colC.metric("去程", info["去程"])
         colD.metric("回程", info["回程"])
         colE.metric("登轎出發", format_time(info["登轎出發"]))
-        colF.metric("抵達北港", pd.to_datetime(info["抵達北港"]).strftime("%m/%d"))
+        colF.metric("抵達北港", str(info["抵達北港"]))
         colG.metric("刈火", format_time(info["刈火"]))
         colH.metric("回鑾", format_time(info["回鑾"]))
         st.metric("報名人數", f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-")
+
 st.divider()
+
 # ==============================
-# 原本統計（完全沒動）
+# 原本統計
 # ==============================
 
 total_days = year_df["行軍日"].nunique()
 go_days = year_df[year_df["去回程"] == "去程"]["行軍日"].nunique()
 back_days = year_df[year_df["去回程"] == "回程"]["行軍日"].nunique()
+
 start_time = year_df.iloc[0]["完整時間"]
 end_time = year_df.iloc[-1]["完整時間"]
+
 total_hours = round((end_time - start_time).total_seconds() / 3600, 1)
 
 go_df = year_df[year_df["去回程"] == "去程"]
 back_df = year_df[year_df["去回程"] == "回程"]
 
 go_hours = round((go_df.iloc[-1]["完整時間"] - go_df.iloc[0]["完整時間"]).total_seconds() / 3600, 1)
-
 back_hours = round((back_df.iloc[-1]["完整時間"] - back_df.iloc[0]["完整時間"]).total_seconds() / 3600, 1)
 
 c1, c2, c3, c4, c5, c6 = st.columns(6)
@@ -226,22 +226,26 @@ c3.metric("回程天數", back_days)
 c4.metric("總時數", total_hours)
 c5.metric("去程時數", go_hours)
 c6.metric("回程時數", back_hours)
+
 st.divider()
+
 # ==============================
-# 每日摘要
+# 每日摘要（優化：不重複sort）
 # ==============================
 
 st.subheader("每日行程摘要")
 
-grouped = year_df.groupby("行軍日",sort=True)
+grouped = year_df.groupby("行軍日", sort=True)
 
-for g_date,g_df in grouped:
+for g_date, g_df in grouped:
+
+    g_df = g_df.sort_values("完整時間")
 
     date_str = pd.to_datetime(g_date).strftime("%m/%d")
 
     summary_lines = []
 
-    start_row = g_df.sort_values("完整時間").iloc[0]
+    start_row = g_df.iloc[0]
 
     summary_lines.append(f"起駕: {start_row['完整時間'].strftime('%H:%M')} {start_row['地點']}")
 
@@ -271,12 +275,10 @@ for g_date,g_df in grouped:
 
         display_df = display_df[["時間","地點","去回程","事件","備註"]]
 
-        display_df = display_df.sort_values("時間")
-
-        st.dataframe(display_df,use_container_width=True,hide_index=True)
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 # ==============================
-# 地點搜尋
+# 地點搜尋（優化 regex）
 # ==============================
 
 st.divider()
@@ -293,7 +295,7 @@ with col2:
 
 if keyword:
 
-    result = df[df["地點"].str.contains(keyword,na=False)]
+    result = df[df["地點"].str.contains(keyword, na=False, regex=False)]
 
     result = result.sort_values("完整時間")
 
@@ -305,10 +307,9 @@ if keyword:
 
         result_display = result_display[["時間","年","地點","去回程","事件"]]
 
-        st.dataframe(result_display,use_container_width=True)
+        st.dataframe(result_display, use_container_width=True)
 
     else:
-
         st.warning("查無資料")
 
 # ==============================

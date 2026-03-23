@@ -16,9 +16,7 @@ FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/Baish
 APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
-# 👉 Debug開關（需要時改 True）
 DEBUG = False
-#DEBUG = True
 
 # ==============================
 # 背景圖片 + CSS
@@ -40,29 +38,24 @@ st.markdown("""
 background:#2b0000;
 background-image:linear-gradient(135deg,#2b0000 0%,#4b0000 50%,#1a0000 100%);
 }
-
 .stApp p,.stApp span,.stApp label,.stApp div,.stApp h1,.stApp h2,.stApp h3{
 color:#ffffff !important;
 }
-
 [data-testid="stMetricValue"]{
 color:#FFD700 !important;
 font-weight:bold;
 font-size:20px !important;
 white-space:pre-line !important;
 }
-
 [data-testid="stMetricLabel"]{
 font-size:12px !important;
 }
-
 [data-testid="stExpander"]{
 background:#1a1a1a;
 border:1px solid rgba(255,215,0,0.3);
 border-radius:10px;
 margin-bottom:12px;
 }
-
 .watermark{
 position:fixed;
 top:50%;
@@ -83,7 +76,7 @@ if img_base64:
 st.title(APP_TITLE)
 
 # ==============================
-# 讀取Excel（強化穩定版）
+# 讀取Excel
 # ==============================
 
 @st.cache_data(ttl=600)
@@ -94,18 +87,12 @@ def load_data():
 
     xls = pd.ExcelFile(BytesIO(r.content))
 
-    if DEBUG:
-        st.write("📄 所有Sheet：", xls.sheet_names)
-
     df_list = []
     info_df = None
 
     for name in xls.sheet_names:
 
         clean_name = str(name).strip()
-
-        if DEBUG:
-            st.write("➡️ 處理Sheet：", clean_name)
 
         # 年度資訊
         if clean_name == "年度資訊":
@@ -116,11 +103,9 @@ def load_data():
                 pass
             continue
 
-        # 抓年份（超強容錯）
-        match = re.search(r"\d{4}", clean_name)
+        # 👉 抓年份（只要有年份就抓）
+        match = re.search(r"(19|20)\d{2}", clean_name)
         if not match:
-            if DEBUG:
-                st.write("⛔ 跳過（沒有年份）：", clean_name)
             continue
 
         year = int(match.group())
@@ -128,100 +113,93 @@ def load_data():
         try:
             data = pd.read_excel(xls, sheet_name=name)
         except:
-            if DEBUG:
-                st.write("❌ 讀取失敗：", clean_name)
             continue
 
-        # 空表
         if data.dropna(how="all").empty:
-            if DEBUG:
-                st.write("⛔ 空表：", clean_name)
             continue
 
-        # 欄位整理
         data.columns = data.columns.str.strip()
 
         required_cols = ["月", "日", "時間"]
         if not all(col in data.columns for col in required_cols):
-            if DEBUG:
-                st.write("⛔ 缺欄位：", clean_name, data.columns.tolist())
             continue
 
         data = data.dropna(how="all")
         data["年份"] = year
 
-        # 清理字串
         for col in ["時間", "地點", "事件", "去回程"]:
             if col in data.columns:
                 data[col] = data[col].astype(str).str.strip()
 
         df_list.append(data)
 
-    if not df_list:
-        return pd.DataFrame(), info_df
+    if df_list:
+        df = pd.concat(df_list, ignore_index=True)
 
-    df = pd.concat(df_list, ignore_index=True)
+        df.columns = df.columns.str.strip()
+        df["月"] = df["月"].fillna(0).astype(int)
+        df["日"] = df["日"].fillna(0).astype(int)
 
-    df.columns = df.columns.str.strip()
+        df["時間"] = df["時間"].astype(str).str.replace("：", ":")
 
-    df["月"] = df["月"].fillna(0).astype(int)
-    df["日"] = df["日"].fillna(0).astype(int)
+        time_split = df["時間"].str.split(":", expand=True)
 
-    df["時間"] = df["時間"].astype(str).str.replace("：", ":")
+        df["時"] = pd.to_numeric(time_split[0], errors="coerce")
+        df["分"] = pd.to_numeric(time_split[1], errors="coerce")
 
-    time_split = df["時間"].str.split(":", expand=True)
+        df["完整時間"] = pd.to_datetime(
+            dict(
+                year=df["年份"],
+                month=df["月"],
+                day=df["日"],
+                hour=df["時"],
+                minute=df["分"]
+            ),
+            errors="coerce"
+        )
 
-    df["時"] = pd.to_numeric(time_split[0], errors="coerce")
-    df["分"] = pd.to_numeric(time_split[1], errors="coerce")
+        df = df.dropna(subset=["完整時間"])
 
-    df["完整時間"] = pd.to_datetime(
-        dict(
-            year=df["年份"],
-            month=df["月"],
-            day=df["日"],
-            hour=df["時"],
-            minute=df["分"]
-        ),
-        errors="coerce"
-    )
+        df["摘要日"] = df["完整時間"].dt.date
+        df["行軍時間"] = df["完整時間"]
 
-    if DEBUG:
-        st.write("🧪 轉換後資料筆數：", len(df))
+        mask = (df["完整時間"].dt.hour == 23) & (df["完整時間"].dt.minute >= 30)
+        df.loc[mask, "行軍時間"] += timedelta(days=1)
 
-    df = df.dropna(subset=["完整時間"])
+        df["行軍日"] = df["行軍時間"].dt.date
+        df["年"] = df["年份"]
 
-    df["摘要日"] = df["完整時間"].dt.date
+        df = df.sort_values("完整時間").reset_index(drop=True)
 
-    df["行軍時間"] = df["完整時間"]
-
-    mask = (df["完整時間"].dt.hour == 23) & (df["完整時間"].dt.minute >= 30)
-    df.loc[mask, "行軍時間"] = df.loc[mask, "行軍時間"] + timedelta(days=1)
-
-    df["行軍日"] = df["行軍時間"].dt.date
-
-    df["年"] = df["年份"]
-
-    df = df.sort_values("完整時間").reset_index(drop=True)
+    else:
+        df = pd.DataFrame()
 
     return df, info_df
 
 df, info_df = load_data()
 
-if df.empty:
-    st.warning("⚠️ 沒有讀到任何資料（請檢查 Excel）")
+# ==============================
+# 🔥 年份來源（關鍵修正）
+# ==============================
+
+years_from_data = set(df["年"].unique()) if not df.empty else set()
+
+years_from_info = set()
+if info_df is not None and "年份" in info_df.columns:
+    years_from_info = set(pd.to_numeric(info_df["年份"], errors="coerce").dropna().astype(int))
+
+years = sorted(years_from_data.union(years_from_info), reverse=True)
+
+if not years:
+    st.warning("⚠️ 沒有任何年份資料")
     st.stop()
 
-# ==============================
-# 年份選擇
-# ==============================
-
-years = sorted(df["年"].unique(), reverse=True)
 year = st.selectbox("選擇年份", years, index=0)
 
-year_df = df[df["年"] == year].copy()
+year_df = df[df["年"] == year].copy() if not df.empty else pd.DataFrame()
 
 # ==============================
-# 以下完全照你原本的（不動）
+# UI開始（完全不動）
 # ==============================
 
 st.header(f"{year} 白沙屯媽祖進香資料總覽")
@@ -234,8 +212,9 @@ def format_time(val):
         return dt.strftime("%m/%d\n%H:%M")
     except:
         return "-"
+
 # ==============================
-# 年度資訊
+# 年度資訊（完全保留）
 # ==============================
 
 if info_df is not None:
@@ -257,82 +236,92 @@ if info_df is not None:
 st.divider()
 
 # ==============================
-# 原本統計
+# 🔥 無資料防炸
 # ==============================
 
-total_days = year_df["行軍日"].nunique()
-go_days = year_df[year_df["去回程"] == "去程"]["行軍日"].nunique()
-back_days = year_df[year_df["去回程"] == "回程"]["行軍日"].nunique()
+if year_df.empty:
+    st.info("📌 此年份沒有詳細行程資料（僅顯示官方資訊）")
 
-start_time = year_df.iloc[0]["完整時間"]
-end_time = year_df.iloc[-1]["完整時間"]
+# ==============================
+# 原本統計（加防護）
+# ==============================
 
-total_hours = round((end_time - start_time).total_seconds() / 3600, 1)
+if not year_df.empty:
 
-go_df = year_df[year_df["去回程"] == "去程"]
-back_df = year_df[year_df["去回程"] == "回程"]
+    total_days = year_df["行軍日"].nunique()
+    go_days = year_df[year_df["去回程"] == "去程"]["行軍日"].nunique()
+    back_days = year_df[year_df["去回程"] == "回程"]["行軍日"].nunique()
 
-go_hours = round((go_df.iloc[-1]["完整時間"] - go_df.iloc[0]["完整時間"]).total_seconds() / 3600, 1)
-back_hours = round((back_df.iloc[-1]["完整時間"] - back_df.iloc[0]["完整時間"]).total_seconds() / 3600, 1)
+    start_time = year_df.iloc[0]["完整時間"]
+    end_time = year_df.iloc[-1]["完整時間"]
 
-c1, c2, c3, c4, c5, c6 = st.columns(6)
+    total_hours = round((end_time - start_time).total_seconds() / 3600, 1)
 
-c1.metric("總天數", total_days)
-c2.metric("去程天數", go_days)
-c3.metric("回程天數", back_days)
-c4.metric("總時數", total_hours)
-c5.metric("去程時數", go_hours)
-c6.metric("回程時數", back_hours)
+    go_df = year_df[year_df["去回程"] == "去程"]
+    back_df = year_df[year_df["去回程"] == "回程"]
+
+    go_hours = round((go_df.iloc[-1]["完整時間"] - go_df.iloc[0]["完整時間"]).total_seconds() / 3600, 1)
+    back_hours = round((back_df.iloc[-1]["完整時間"] - back_df.iloc[0]["完整時間"]).total_seconds() / 3600, 1)
+
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+
+    c1.metric("總天數", total_days)
+    c2.metric("去程天數", go_days)
+    c3.metric("回程天數", back_days)
+    c4.metric("總時數", total_hours)
+    c5.metric("去程時數", go_hours)
+    c6.metric("回程時數", back_hours)
 
 st.divider()
 
 # ==============================
-# 每日摘要（優化：不重複sort）
+# 每日摘要（加防護）
 # ==============================
 
-st.subheader("每日行程摘要")
+if not year_df.empty:
 
-grouped = year_df.groupby("行軍日", sort=True)
+    st.subheader("每日行程摘要")
 
-for g_date, g_df in grouped:
+    grouped = year_df.groupby("行軍日", sort=True)
 
-    g_df = g_df.sort_values("完整時間")
+    for g_date, g_df in grouped:
 
-    date_str = pd.to_datetime(g_date).strftime("%m/%d")
+        g_df = g_df.sort_values("完整時間")
 
-    summary_lines = []
+        date_str = pd.to_datetime(g_date).strftime("%m/%d")
 
-    start_row = g_df.iloc[0]
+        summary_lines = []
 
-    summary_lines.append(f"起駕: {start_row['完整時間'].strftime('%H:%M')} {start_row['地點']}")
+        start_row = g_df.iloc[0]
+        summary_lines.append(f"起駕: {start_row['完整時間'].strftime('%H:%M')} {start_row['地點']}")
 
-    lunch_rest = g_df[g_df["事件"]=="午休"]
-    if not lunch_rest.empty:
-        summary_lines.append(f"午休: {lunch_rest.iloc[0]['完整時間'].strftime('%H:%M')} {lunch_rest.iloc[0]['地點']}")
+        lunch_rest = g_df[g_df["事件"]=="午休"]
+        if not lunch_rest.empty:
+            summary_lines.append(f"午休: {lunch_rest.iloc[0]['完整時間'].strftime('%H:%M')} {lunch_rest.iloc[0]['地點']}")
 
-    night_rest = g_df[g_df["事件"]=="駐駕"]
-    if not night_rest.empty:
-        summary_lines.append(f"駐駕: {night_rest.iloc[0]['完整時間'].strftime('%H:%M')} {night_rest.iloc[0]['地點']}")
+        night_rest = g_df[g_df["事件"]=="駐駕"]
+        if not night_rest.empty:
+            summary_lines.append(f"駐駕: {night_rest.iloc[0]['完整時間'].strftime('%H:%M')} {night_rest.iloc[0]['地點']}")
 
-    chaotian_arrival = g_df[g_df["事件"]=="抵達北港朝天宮"]
-    if not chaotian_arrival.empty:
-        summary_lines.append(f"抵達北港: {chaotian_arrival.iloc[0]['完整時間'].strftime('%H:%M')}")
+        chaotian_arrival = g_df[g_df["事件"]=="抵達北港朝天宮"]
+        if not chaotian_arrival.empty:
+            summary_lines.append(f"抵達北港: {chaotian_arrival.iloc[0]['完整時間'].strftime('%H:%M')}")
 
-    home_return = g_df[g_df["事件"]=="回宮"]
-    if not home_return.empty:
-        summary_lines.append(f"回宮: {home_return.iloc[0]['完整時間'].strftime('%H:%M')}")
+        home_return = g_df[g_df["事件"]=="回宮"]
+        if not home_return.empty:
+            summary_lines.append(f"回宮: {home_return.iloc[0]['完整時間'].strftime('%H:%M')}")
 
-    daily_summary_text = " ; ".join(summary_lines)
+        daily_summary_text = " ; ".join(summary_lines)
 
-    with st.expander(f"{date_str} {daily_summary_text}"):
+        with st.expander(f"{date_str} {daily_summary_text}"):
 
-        display_df = g_df[["完整時間","地點","去回程","事件","備註"]].copy()
+            display_df = g_df[["完整時間","地點","去回程","事件","備註"]].copy()
 
-        display_df["時間"] = display_df["完整時間"].dt.strftime("%H:%M")
+            display_df["時間"] = display_df["完整時間"].dt.strftime("%H:%M")
 
-        display_df = display_df[["時間","地點","去回程","事件","備註"]]
+            display_df = display_df[["時間","地點","去回程","事件","備註"]]
 
-        st.dataframe(display_df, use_container_width=True, hide_index=True)
+            st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 # ==============================
 # 地點搜尋（優化 regex）

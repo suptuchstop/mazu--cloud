@@ -5,6 +5,7 @@ from io import BytesIO
 import base64
 from datetime import timedelta
 import logging
+import re
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
@@ -14,6 +15,10 @@ st.set_page_config(page_title="白沙屯媽進香資料記錄", layout="wide")
 FILE_URL = "https://raw.githubusercontent.com/suptuchstop/mazu--cloud/main/BaishatunMAZU_Data.xlsx"
 APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
+
+# 👉 Debug開關（需要時改 True）
+#DEBUG = False
+DEBUG = True
 
 # ==============================
 # 背景圖片 + CSS
@@ -78,33 +83,82 @@ if img_base64:
 st.title(APP_TITLE)
 
 # ==============================
-# 讀取Excel（優化版）
+# 讀取Excel（強化穩定版）
 # ==============================
 
 @st.cache_data(ttl=600)
 def load_data():
-
 
     r = requests.get(FILE_URL, timeout=10)
     r.raise_for_status()
 
     xls = pd.ExcelFile(BytesIO(r.content))
 
+    if DEBUG:
+        st.write("📄 所有Sheet：", xls.sheet_names)
+
     df_list = []
     info_df = None
 
     for name in xls.sheet_names:
 
-        if name == "年度資訊":
-            info_df = pd.read_excel(xls, sheet_name=name)
-            info_df.columns = info_df.columns.str.strip()
+        clean_name = str(name).strip()
+
+        if DEBUG:
+            st.write("➡️ 處理Sheet：", clean_name)
+
+        # 年度資訊
+        if clean_name == "年度資訊":
+            try:
+                info_df = pd.read_excel(xls, sheet_name=name)
+                info_df.columns = info_df.columns.str.strip()
+            except:
+                pass
             continue
 
-        data = pd.read_excel(xls, sheet_name=name)
+        # 抓年份（超強容錯）
+        match = re.search(r"\d{4}", clean_name)
+        if not match:
+            if DEBUG:
+                st.write("⛔ 跳過（沒有年份）：", clean_name)
+            continue
+
+        year = int(match.group())
+
+        try:
+            data = pd.read_excel(xls, sheet_name=name)
+        except:
+            if DEBUG:
+                st.write("❌ 讀取失敗：", clean_name)
+            continue
+
+        # 空表
+        if data.dropna(how="all").empty:
+            if DEBUG:
+                st.write("⛔ 空表：", clean_name)
+            continue
+
+        # 欄位整理
+        data.columns = data.columns.str.strip()
+
+        required_cols = ["月", "日", "時間"]
+        if not all(col in data.columns for col in required_cols):
+            if DEBUG:
+                st.write("⛔ 缺欄位：", clean_name, data.columns.tolist())
+            continue
 
         data = data.dropna(how="all")
-        data["年份"] = int(name)
+        data["年份"] = year
+
+        # 清理字串
+        for col in ["時間", "地點", "事件", "去回程"]:
+            if col in data.columns:
+                data[col] = data[col].astype(str).str.strip()
+
         df_list.append(data)
+
+    if not df_list:
+        return pd.DataFrame(), info_df
 
     df = pd.concat(df_list, ignore_index=True)
 
@@ -113,8 +167,7 @@ def load_data():
     df["月"] = df["月"].fillna(0).astype(int)
     df["日"] = df["日"].fillna(0).astype(int)
 
-    df["時間"] = df["時間"].astype(str).str.strip()
-    df["時間"] = df["時間"].str.replace("：", ":")
+    df["時間"] = df["時間"].astype(str).str.replace("：", ":")
 
     time_split = df["時間"].str.split(":", expand=True)
 
@@ -131,6 +184,9 @@ def load_data():
         ),
         errors="coerce"
     )
+
+    if DEBUG:
+        st.write("🧪 轉換後資料筆數：", len(df))
 
     df = df.dropna(subset=["完整時間"])
 
@@ -152,15 +208,12 @@ def load_data():
 df, info_df = load_data()
 
 if df.empty:
+    st.warning("⚠️ 沒有讀到任何資料（請檢查 Excel）")
     st.stop()
 
 # ==============================
 # 年份選擇
 # ==============================
-st.write(xls.sheet_names)
-for name in xls.sheet_name:
-    st.write("正在讀:",name)
-
 
 years = sorted(df["年"].unique(), reverse=True)
 year = st.selectbox("選擇年份", years, index=0)
@@ -168,7 +221,7 @@ year = st.selectbox("選擇年份", years, index=0)
 year_df = df[df["年"] == year].copy()
 
 # ==============================
-# 年度統計
+# 以下完全照你原本的（不動）
 # ==============================
 
 st.header(f"{year} 白沙屯媽祖進香資料總覽")
@@ -181,7 +234,6 @@ def format_time(val):
         return dt.strftime("%m/%d\n%H:%M")
     except:
         return "-"
-
 # ==============================
 # 年度資訊
 # ==============================

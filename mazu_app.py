@@ -231,9 +231,16 @@ if info_df is not None:
         colF.metric("抵達北港", pd.to_datetime(info["抵達北港"]).strftime("%m/%d"))
         colG.metric("刈火", format_time(info["刈火"]))
         colH.metric("回鑾", format_time(info["回鑾"]))
-        st.metric("報名人數", f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-")
+        # 報名人數
+        signup_text = f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-"
 
-st.divider()
+        # 備註
+        remark = ""
+        if "備註" in info and pd.notna(info["備註"]) and str(info["備註"]).strip() != "":
+            remark = f"\n{info['備註']}"
+
+        st.metric("報名人數", signup_text + remark)
+        st.divider()
 
 # ==============================
 # 🔥 無資料防炸

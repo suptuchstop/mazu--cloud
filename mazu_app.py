@@ -222,7 +222,7 @@ if info_df is not None:
     year_info = info_df[info_df["年份"] == year]
     if not year_info.empty:
         info = year_info.iloc[0]
-        colA, colB, colC, colD, colE, colF, colG, colH = st.columns(8)
+        colA, colB, colC, colD, colE, colF, colG, colH,  colI, colJ = st.columns(10)
         colA.metric("歲次", info["歲次"])
         colB.metric("時程", info["時程"])
         colC.metric("去程", info["去程"])
@@ -237,7 +237,7 @@ if info_df is not None:
 
         # 備註（新欄位，跟報名人數平行）
         if "備註" in info and pd.notna(info["備註"]) and str(info["備註"]).strip() != "":
-            colI.metric("備註", info["備註"])
+            colJ.metric("備註", info["備註"])
         
 
 # ==============================

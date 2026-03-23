@@ -233,13 +233,11 @@ if info_df is not None:
         colH.metric("回鑾", format_time(info["回鑾"]))
         # 報名人數
         signup_text = f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-"
+        colI.metric("報名人數", signup_text)
 
-        # 備註
-        remark = ""
+        # 備註（新欄位，跟報名人數平行）
         if "備註" in info and pd.notna(info["備註"]) and str(info["備註"]).strip() != "":
-            remark = f"\n{info['備註']}"
-        st.divider()
-        st.metric(remark)
+            colI.metric("備註", info["備註"])
         
 
 # ==============================

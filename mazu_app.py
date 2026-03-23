@@ -17,8 +17,8 @@ APP_TITLE = "🔥白沙屯媽進香資料記錄🔥"
 WATERMARK_IMAGE_PATH = "mazu_logo.png"
 
 # 👉 Debug開關（需要時改 True）
-#DEBUG = False
-DEBUG = True
+DEBUG = False
+#DEBUG = True
 
 # ==============================
 # 背景圖片 + CSS

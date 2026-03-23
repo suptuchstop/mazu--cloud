@@ -222,7 +222,7 @@ if info_df is not None:
     year_info = info_df[info_df["年份"] == year]
     if not year_info.empty:
         info = year_info.iloc[0]
-        colA, colB, colC, colD, colE, colF, colG, colH,  colI, colJ = st.columns(10)
+        colA, colB, colC, colD, colE, colF, colG, colH = st.columns(8)
         colA.metric("歲次", info["歲次"])
         colB.metric("時程", info["時程"])
         colC.metric("去程", info["去程"])
@@ -231,15 +231,21 @@ if info_df is not None:
         colF.metric("抵達北港", pd.to_datetime(info["抵達北港"]).strftime("%m/%d"))
         colG.metric("刈火", format_time(info["刈火"]))
         colH.metric("回鑾", format_time(info["回鑾"]))
+        
+        # -------------------------
+        # 下一行：報名人數 + 備註
+        # -------------------------
+        # 建立一整行
+        col1, col2 = st.columns([1, 4])  # 你可以調比例讓備註長一些
+
         # 報名人數
         signup_text = f"{int(info['報名人數']):,}" if pd.notna(info["報名人數"]) else "-"
-        colI.metric("報名人數", signup_text)
+        col1.metric("報名人數", signup_text)
 
-        # 備註（新欄位，跟報名人數平行）
-        if "備註" in info and pd.notna(info["備註"]) and str(info["備註"]).strip() != "":
-            colJ.metric("備註", info["備註"])
+        # 備註（如果有就顯示，否則顯示 "-"）
+        remark_text = info["備註"] if "備註" in info and pd.notna(info["備註"]) and str(info["備註"]).strip() != "" else "-"
+        col2.metric("備註", remark_text)
         
-
 # ==============================
 # 🔥 無資料防炸
 # ==============================

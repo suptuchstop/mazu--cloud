@@ -238,9 +238,9 @@ if info_df is not None:
         remark = ""
         if "備註" in info and pd.notna(info["備註"]) and str(info["備註"]).strip() != "":
             remark = f"\n{info['備註']}"
-
-        st.metric("報名人數", signup_text + remark)
         st.divider()
+        st.metric(remark)
+        
 
 # ==============================
 # 🔥 無資料防炸

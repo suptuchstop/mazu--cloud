@@ -83,9 +83,7 @@ st.title(APP_TITLE)
 
 @st.cache_data(ttl=600)
 def load_data():
-    st.write(xls.sheet_names)
-    for name in xls.sheet_name:
-        st.write("正在讀:",name)
+
 
     r = requests.get(FILE_URL, timeout=10)
     r.raise_for_status()
@@ -159,6 +157,10 @@ if df.empty:
 # ==============================
 # 年份選擇
 # ==============================
+st.write(xls.sheet_names)
+for name in xls.sheet_name:
+    st.write("正在讀:",name)
+
 
 years = sorted(df["年"].unique(), reverse=True)
 year = st.selectbox("選擇年份", years, index=0)
